@@ -119,6 +119,9 @@ var LogConsumeEnabled = true
 var TLSInsecureSkipVerify bool
 var InsecureTLSConfig = &tls.Config{InsecureSkipVerify: true}
 
+var ErrorEmailNotifyEnabled = false
+var ErrorEmailNotifyRecipients = ""
+
 var SMTPServer = ""
 var SMTPPort = 587
 var SMTPSSLEnabled = false

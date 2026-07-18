@@ -66,6 +66,8 @@ func InitOptionMap() {
 	common.OptionMap["SMTPStartTLSEnabled"] = strconv.FormatBool(common.SMTPStartTLSEnabled)
 	common.OptionMap["SMTPInsecureSkipVerify"] = strconv.FormatBool(common.SMTPInsecureSkipVerify)
 	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
+	common.OptionMap["ErrorEmailNotifyEnabled"] = strconv.FormatBool(common.ErrorEmailNotifyEnabled)
+	common.OptionMap["ErrorEmailNotifyRecipients"] = common.ErrorEmailNotifyRecipients
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
@@ -358,6 +360,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.SMTPInsecureSkipVerify = boolValue
 		case "SMTPForceAuthLogin":
 			common.SMTPForceAuthLogin = boolValue
+		case "ErrorEmailNotifyEnabled":
+			common.ErrorEmailNotifyEnabled = boolValue
 		case "WorkerAllowHttpImageRequestEnabled":
 			system_setting.WorkerAllowHttpImageRequestEnabled = boolValue
 		case "DefaultUseAutoGroup":
@@ -380,6 +384,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.SMTPFrom = value
 	case "SMTPToken":
 		common.SMTPToken = value
+	case "ErrorEmailNotifyRecipients":
+		common.ErrorEmailNotifyRecipients = value
 	case "ServerAddress":
 		system_setting.ServerAddress = value
 	case "WorkerUrl":

@@ -96,6 +96,28 @@ func InitEnv() {
 			}
 		}
 	}
+	ErrorEmailNotifyEnabled = GetEnvOrDefaultBool("ERROR_EMAIL_NOTIFY_ENABLED", false)
+	ErrorEmailNotifyRecipients = GetEnvOrDefaultString("ERROR_EMAIL_NOTIFY_RECIPIENTS", "")
+
+	if v := os.Getenv("SMTP_SERVER"); v != "" {
+		SMTPServer = v
+	}
+	if v := os.Getenv("SMTP_PORT"); v != "" {
+		SMTPPort, _ = strconv.Atoi(v)
+	}
+	if v := os.Getenv("SMTP_ACCOUNT"); v != "" {
+		SMTPAccount = v
+	}
+	if v := os.Getenv("SMTP_FROM"); v != "" {
+		SMTPFrom = v
+	} else if SMTPAccount != "" {
+		SMTPFrom = SMTPAccount
+	}
+	if v := os.Getenv("SMTP_TOKEN"); v != "" {
+		SMTPToken = v
+	}
+	SMTPSSLEnabled = GetEnvOrDefaultBool("SMTP_SSL_ENABLED", false)
+
 	SMTPStartTLSEnabled = GetEnvOrDefaultBool("SMTP_STARTTLS_ENABLE", GetEnvOrDefaultBool("SMTP_STARTTLS_ENABLED", false))
 	SMTPInsecureSkipVerify = GetEnvOrDefaultBool("SMTP_INSECURE_SKIP_VERIFY", GetEnvOrDefaultBool("SMTP_TLS_INSECURE_SKIP_VERIFY", false))
 
