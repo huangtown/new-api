@@ -84,9 +84,15 @@ export function FallbackSettingsSection({
   return (
     <SettingsSection title={t('Channel Fallback')}>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
-          <SettingsForm>
-            <SettingsSwitchItem>
+        <SettingsForm onSubmit={form.handleSubmit(onSubmit)} autoComplete='off'>
+          <SettingsPageFormActions
+            onSave={form.handleSubmit(onSubmit)}
+            onReset={() => form.reset(defaultValues)}
+            isSaving={updateOption.isPending}
+            isResetDisabled={updateOption.isPending}
+            saveLabel='Save fallback settings'
+          />
+          <SettingsSwitchItem>
               <SettingsSwitchContent>
                 <FormField
                   control={form.control}
@@ -190,14 +196,7 @@ export function FallbackSettingsSection({
                 </FormItem>
               )}
             />
-          </SettingsForm>
-
-          <SettingsPageFormActions
-            onReset={() => form.reset(defaultValues)}
-            isDirty={form.formState.isDirty}
-            isPending={updateOption.isPending}
-          />
-        </form>
+        </SettingsForm>
       </Form>
     </SettingsSection>
   )
