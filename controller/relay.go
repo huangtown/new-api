@@ -239,15 +239,18 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			if fbErr == nil && fallbackChannel != nil {
 				logger.LogInfo(c, fmt.Sprintf("触发渠道兜底: 渠道#%d → 兜底渠道#%d, 原因: %s", channel.Id, fallbackChannel.Id, common.LocalLogPreview(newAPIError.Error())))
 				c.Set("fallback_used", true)
-				c.Set("channel_id", fallbackChannel.Id)
-				c.Set("channel_type", fallbackChannel.Type)
-				c.Set("channel_name", fallbackChannel.Name)
+				// SetupContextForSelectedChannel sets ALL context keys (api key,
+				// base url, settings, etc.) — not just channel_id/type/name.
+				if setupErr := middleware.SetupContextForSelectedChannel(c, fallbackChannel, relayInfo.OriginModelName); setupErr != nil {
+					logger.LogWarn(c, fmt.Sprintf("兜底渠道#%d 配置失败: %v", fallbackChannel.Id, setupErr))
+					break
+				}
 				c.Set("auto_ban", false)
 				relayInfo.ChannelMeta = nil
-				retryParam.SetRetry(0)
+				retryParam.SetRetry(-1) // -1 so IncreaseRetry() → 0, works even when RetryTimes==0
 				newAPIError = nil
 				continue
-			} else if fbErr != nil {
+				} else if fbErr != nil {
 				logger.LogWarn(c, fmt.Sprintf("兜底渠道不可用: %v", fbErr))
 			}
 		}
