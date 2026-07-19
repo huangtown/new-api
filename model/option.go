@@ -68,6 +68,11 @@ func InitOptionMap() {
 	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
 	common.OptionMap["ErrorEmailNotifyEnabled"] = strconv.FormatBool(common.ErrorEmailNotifyEnabled)
 	common.OptionMap["ErrorEmailNotifyRecipients"] = common.ErrorEmailNotifyRecipients
+	common.OptionMap["FallbackEnabled"] = strconv.FormatBool(common.FallbackEnabled)
+	common.OptionMap["FallbackChannelIDs"] = common.FallbackChannelIDs
+	common.OptionMap["FallbackStatusCodes"] = common.FallbackStatusCodes
+	common.OptionMap["FallbackTriggerKeywords"] = common.FallbackTriggerKeywords
+	common.OptionMap["GroupFallbackChannelIDs"] = common.GroupFallbackChannelIDs
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
@@ -362,6 +367,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.SMTPForceAuthLogin = boolValue
 		case "ErrorEmailNotifyEnabled":
 			common.ErrorEmailNotifyEnabled = boolValue
+		case "FallbackEnabled":
+			common.FallbackEnabled = boolValue
 		case "WorkerAllowHttpImageRequestEnabled":
 			system_setting.WorkerAllowHttpImageRequestEnabled = boolValue
 		case "DefaultUseAutoGroup":
@@ -386,6 +393,14 @@ func updateOptionMap(key string, value string) (err error) {
 		common.SMTPToken = value
 	case "ErrorEmailNotifyRecipients":
 		common.ErrorEmailNotifyRecipients = value
+	case "FallbackChannelIDs":
+		common.FallbackChannelIDs = value
+	case "FallbackStatusCodes":
+		common.FallbackStatusCodes = value
+	case "FallbackTriggerKeywords":
+		common.FallbackTriggerKeywords = value
+	case "GroupFallbackChannelIDs":
+		common.GroupFallbackChannelIDs = value
 	case "ServerAddress":
 		system_setting.ServerAddress = value
 	case "WorkerUrl":

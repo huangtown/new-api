@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -231,6 +232,26 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
+		// ------- channel fallback (渠道兜底) -------
+		if !c.GetBool("fallback_used") && service.ShouldTriggerFallback(newAPIError) {
+			usedChannelIds := parseUsedChannelIds(c.GetStringSlice("use_channel"))
+			fallbackChannel, fbErr := service.GetFallbackChannel(usedChannelIds, relayInfo.TokenGroup)
+			if fbErr == nil && fallbackChannel != nil {
+				logger.LogInfo(c, fmt.Sprintf("触发渠道兜底: 渠道#%d → 兜底渠道#%d, 原因: %s", channel.Id, fallbackChannel.Id, common.LocalLogPreview(newAPIError.Error())))
+				c.Set("fallback_used", true)
+				c.Set("channel_id", fallbackChannel.Id)
+				c.Set("channel_type", fallbackChannel.Type)
+				c.Set("channel_name", fallbackChannel.Name)
+				c.Set("auto_ban", false)
+				relayInfo.ChannelMeta = nil
+				retryParam.SetRetry(0)
+				newAPIError = nil
+				continue
+			} else if fbErr != nil {
+				logger.LogWarn(c, fmt.Sprintf("兜底渠道不可用: %v", fbErr))
+			}
+		}
+
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
@@ -246,6 +267,17 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+// parseUsedChannelIds 将上下文中已使用的渠道ID字符串切片转为int切片，用于兜底时排除已用渠道。
+func parseUsedChannelIds(raw []string) []int {
+	var ids []int
+	for _, s := range raw {
+		if id, convErr := strconv.Atoi(s); convErr == nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
 var upgrader = websocket.Upgrader{

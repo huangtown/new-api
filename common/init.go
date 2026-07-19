@@ -99,6 +99,12 @@ func InitEnv() {
 	ErrorEmailNotifyEnabled = GetEnvOrDefaultBool("ERROR_EMAIL_NOTIFY_ENABLED", false)
 	ErrorEmailNotifyRecipients = GetEnvOrDefaultString("ERROR_EMAIL_NOTIFY_RECIPIENTS", "")
 
+	FallbackEnabled = GetEnvOrDefaultBool("FALLBACK_ENABLED", false)
+	FallbackChannelIDs = GetEnvOrDefaultString("FALLBACK_CHANNEL_IDS", "")
+	FallbackStatusCodes = GetEnvOrDefaultString("FALLBACK_STATUS_CODES", "400")
+	FallbackTriggerKeywords = GetEnvOrDefaultString("FALLBACK_TRIGGER_KEYWORDS", "too long,context length,maximum context,prompt too long,token limit,context_length_exceeded,reduce the length")
+	GroupFallbackChannelIDs = GetEnvOrDefaultString("GROUP_FALLBACK_CHANNEL_IDS", "")
+
 	if v := os.Getenv("SMTP_SERVER"); v != "" {
 		SMTPServer = v
 	}

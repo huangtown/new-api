@@ -344,6 +344,11 @@ export type OperationsSettings = {
   SMTPStartTLSEnabled: boolean
   SMTPInsecureSkipVerify: boolean
   SMTPForceAuthLogin: boolean
+  FallbackEnabled: boolean
+  FallbackChannelIDs: string
+  FallbackStatusCodes: string
+  FallbackTriggerKeywords: string
+  GroupFallbackChannelIDs: string
   WorkerUrl: string
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean
