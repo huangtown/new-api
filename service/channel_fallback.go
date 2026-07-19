@@ -95,7 +95,7 @@ func GetFallbackChannel(usedChannelIds []int, group string) (*model.Channel, err
 			common.SysLog(fmt.Sprintf("fallback channel #%d is not enabled (status=%d)", id, channel.Status))
 			continue
 		}
-		return &channel, nil
+		return channel, nil
 	}
 	return nil, fmt.Errorf("no available fallback channel found")
 }
