@@ -91,6 +91,20 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			// 异步推送报错邮件通知（不阻塞响应）
+			gopool.Go(func() {
+				channelInfo := ""
+				if relayInfo != nil && relayInfo.ChannelMeta != nil {
+					channelInfo = fmt.Sprintf("\n渠道: #%d %s", relayInfo.ChannelMeta.ChannelId, common.GetContextKeyString(c, constant.ContextKeyChannelName))
+				}
+				service.NotifyError(
+					fmt.Sprintf("Relay Error (status=%d)", newAPIError.StatusCode),
+					fmt.Sprintf("请求: %s %s\n状态码: %d\n消息: %s%s\n请求ID: %s",
+						c.Request.Method, c.Request.URL.String(),
+						newAPIError.StatusCode, newAPIError.Message,
+						channelInfo, requestId),
+				)
+			})
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError())
