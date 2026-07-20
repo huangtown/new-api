@@ -75,6 +75,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	var (
 		newAPIError *types.NewAPIError
 		ws          *websocket.Conn
+		relayInfo   *relaycommon.RelayInfo
 	)
 
 	if relayFormat == types.RelayFormatOpenAIRealtime {
@@ -101,7 +102,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 					fmt.Sprintf("Relay Error (status=%d)", newAPIError.StatusCode),
 					fmt.Sprintf("请求: %s %s\n状态码: %d\n消息: %s%s\n请求ID: %s",
 						c.Request.Method, c.Request.URL.String(),
-						newAPIError.StatusCode, newAPIError.Message,
+						newAPIError.StatusCode, newAPIError.Error(),
 						channelInfo, requestId),
 				)
 			})
@@ -132,7 +133,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
-	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, request, ws)
+	relayInfo, err = relaycommon.GenRelayInfo(c, relayFormat, request, ws)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
