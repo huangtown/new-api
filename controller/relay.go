@@ -244,8 +244,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
 
-		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
-
 		// ------- channel fallback (渠道兜底) -------
 		if !c.GetBool("fallback_used") && service.ShouldTriggerFallback(newAPIError) {
 			usedChannelIds := parseUsedChannelIds(c.GetStringSlice("use_channel"))
@@ -264,10 +262,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 				retryParam.SetRetry(-1) // -1 so IncreaseRetry() → 0, works even when RetryTimes==0
 				newAPIError = nil
 				continue
-				} else if fbErr != nil {
+			} else if fbErr != nil {
 				logger.LogWarn(c, fmt.Sprintf("兜底渠道不可用: %v", fbErr))
 			}
 		}
+
+		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
