@@ -100,6 +100,26 @@ func GetFallbackChannel(usedChannelIds []int, group string) (*model.Channel, err
 	return nil, fmt.Errorf("no available fallback channel found")
 }
 
+// GetFallbackBillingRate returns an absolute standard-price multiplier.
+func GetFallbackBillingRate(channelID int, group string) float64 {
+	if common.GroupFallbackBillingRates == "" {
+		return 1
+	}
+	var groups map[string][]struct {
+		Channel string  `json:"channel"`
+		Rate    float64 `json:"rate"`
+	}
+	if json.Unmarshal([]byte(common.GroupFallbackBillingRates), &groups) != nil {
+		return 1
+	}
+	for _, item := range groups[group] {
+		if item.Channel == strconv.Itoa(channelID) && item.Rate > 0 {
+			return item.Rate
+		}
+	}
+	return 1
+}
+
 func splitAndTrim(s, sep string) []string {
 	var result []string
 	for _, part := range strings.Split(s, sep) {

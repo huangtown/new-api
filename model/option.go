@@ -73,6 +73,7 @@ func InitOptionMap() {
 	common.OptionMap["FallbackStatusCodes"] = common.FallbackStatusCodes
 	common.OptionMap["FallbackTriggerKeywords"] = common.FallbackTriggerKeywords
 	common.OptionMap["GroupFallbackChannelIDs"] = common.GroupFallbackChannelIDs
+	common.OptionMap["GroupFallbackBillingRates"] = common.GroupFallbackBillingRates
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
@@ -402,6 +403,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.FallbackTriggerKeywords = value
 	case "GroupFallbackChannelIDs":
 		common.GroupFallbackChannelIDs = value
+	case "GroupFallbackBillingRates":
+		common.GroupFallbackBillingRates = value
 	case "ServerAddress":
 		system_setting.ServerAddress = value
 	case "WorkerUrl":

@@ -104,6 +104,7 @@ func InitEnv() {
 	FallbackStatusCodes = GetEnvOrDefaultString("FALLBACK_STATUS_CODES", "400")
 	FallbackTriggerKeywords = GetEnvOrDefaultString("FALLBACK_TRIGGER_KEYWORDS", "too long,context length,maximum context,prompt too long,token limit,context_length_exceeded,reduce the length")
 	GroupFallbackChannelIDs = GetEnvOrDefaultString("GROUP_FALLBACK_CHANNEL_IDS", "")
+	GroupFallbackBillingRates = GetEnvOrDefaultString("GROUP_FALLBACK_BILLING_RATES", "")
 
 	if v := os.Getenv("SMTP_SERVER"); v != "" {
 		SMTPServer = v

@@ -261,6 +261,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 					break
 				}
 				c.Set("auto_ban", false)
+				c.Set("fallback_channel_id", fallbackChannel.Id)
+				relayInfo.FallbackBillingRate = service.GetFallbackBillingRate(fallbackChannel.Id, relayInfo.TokenGroup)
 				relayInfo.ChannelMeta = nil
 				retryParam.SetRetry(-1) // -1 so IncreaseRetry() → 0, works even when RetryTimes==0
 				newAPIError = nil
@@ -268,6 +270,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			} else if fbErr != nil {
 				logger.LogWarn(c, fmt.Sprintf("兜底渠道不可用: %v", fbErr))
 			}
+		}
+		// If fallback failed and normal retry selected another channel, do not
+		// carry the fallback-only billing rate into that successful request.
+		if relayInfo.FallbackBillingRate > 0 && c.GetInt("fallback_channel_id") != 0 && channel.Id != c.GetInt("fallback_channel_id") {
+			relayInfo.FallbackBillingRate = 0
 		}
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)

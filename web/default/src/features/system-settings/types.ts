@@ -350,6 +350,7 @@ export type OperationsSettings = {
   FallbackStatusCodes: string
   FallbackTriggerKeywords: string
   GroupFallbackChannelIDs: string
+  GroupFallbackBillingRates: string
   WorkerUrl: string
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean

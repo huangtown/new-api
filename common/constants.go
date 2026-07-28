@@ -126,7 +126,8 @@ var FallbackEnabled = false
 var FallbackChannelIDs = ""
 var FallbackStatusCodes = "400"
 var FallbackTriggerKeywords = "too long,context length,maximum context,prompt too long,token limit,context_length_exceeded,reduce the length"
-var GroupFallbackChannelIDs = "" // JSON map: {"default":"10,11","vip":"20,21"}
+var GroupFallbackChannelIDs = ""   // JSON map: {"default":"10,11","vip":"20,21"}
+var GroupFallbackBillingRates = "" // JSON map: {"default":[{"channel":"10","rate":1.5}]}
 
 var SMTPServer = ""
 var SMTPPort = 587

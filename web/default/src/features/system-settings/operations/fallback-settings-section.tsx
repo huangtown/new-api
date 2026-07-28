@@ -50,6 +50,17 @@ const fallbackSchema = z.object({
   FallbackStatusCodes: z.string(),
   FallbackTriggerKeywords: z.string(),
   GroupFallbackChannelIDs: z.string(),
+  GroupFallbackBillingRates: z.string().refine((value) => {
+    if (!value.trim()) return true
+    try {
+      const parsed = JSON.parse(value)
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false
+      return Object.values(parsed).every((items) => Array.isArray(items) && items.every((item: any) =>
+        item && typeof item === 'object' && /^\\d+$/.test(String(item.channel)) &&
+        typeof item.rate === 'number' && Number.isFinite(item.rate) && item.rate > 0
+      ))
+    } catch { return false }
+  }, 'Invalid JSON: expected group arrays with positive numeric channel rates'),
 })
 
 type FallbackFormValues = z.infer<typeof fallbackSchema>
@@ -196,6 +207,12 @@ export function FallbackSettingsSection({
                 </FormItem>
               )}
             />
+            <FormField control={form.control} name="GroupFallbackBillingRates" render={({ field }) => (
+              <FormItem><FormLabel>{t('Fallback Billing Rates')}</FormLabel>
+                <FormDescription>{t('JSON absolute standard-price multipliers, e.g. {"default":[{"channel":"10","rate":1.5}]}')}</FormDescription>
+                <FormControl><Textarea className="font-mono text-sm" rows={3} placeholder='{"default":[{"channel":"10","rate":1.5}]}' {...field} /></FormControl><FormMessage />
+              </FormItem>
+            )} />
         </SettingsForm>
       </Form>
     </SettingsSection>

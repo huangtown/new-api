@@ -101,6 +101,7 @@ type RelayInfo struct {
 	IsGeminiBatchEmbedding bool
 	IsPlayground           bool
 	UsePrice               bool
+	FallbackBillingRate    float64
 	RelayMode              int
 	OriginModelName        string
 	RequestURLPath         string
