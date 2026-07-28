@@ -18,9 +18,13 @@ func RelayPanicRecover() gin.HandlerFunc {
 				stackTrace := string(debug.Stack())
 				common.SysLog(fmt.Sprintf("panic detected: %v", err))
 				common.SysLog(fmt.Sprintf("stacktrace from panic: %s", stackTrace))
+				method, path := "", ""
+				if c.Request != nil {
+					method, path = c.Request.Method, c.Request.URL.String()
+				}
 				gopool.Go(func() {
 					service.NotifyError("Relay Panic", fmt.Sprintf("Panic: %v\n\nStack:\n%s\n\nRequest: %s %s",
-						err, stackTrace, c.Request.Method, c.Request.URL.String()))
+						err, stackTrace, method, path))
 				})
 				c.JSON(http.StatusInternalServerError, gin.H{
 					"error": gin.H{

@@ -175,9 +175,13 @@ func main() {
 	server := gin.New()
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		common.SysLog(fmt.Sprintf("panic detected: %v", err))
+		method, path := "", ""
+		if c.Request != nil {
+			method, path = c.Request.Method, c.Request.URL.String()
+		}
 		gopool.Go(func() {
 			service.NotifyError("HTTP Server Panic", fmt.Sprintf("Panic: %v\n\nRequest: %s %s",
-				err, c.Request.Method, c.Request.URL.String()))
+				err, method, path))
 		})
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{

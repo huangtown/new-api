@@ -122,6 +122,10 @@ func InitEnv() {
 	if v := os.Getenv("SMTP_TOKEN"); v != "" {
 		SMTPToken = v
 	}
+	SMTPTimeout = GetEnvOrDefault("SMTP_TIMEOUT", 30)
+	if SMTPTimeout <= 0 {
+		SMTPTimeout = 30
+	}
 	SMTPSSLEnabled = GetEnvOrDefaultBool("SMTP_SSL_ENABLED", false)
 
 	SMTPStartTLSEnabled = GetEnvOrDefaultBool("SMTP_STARTTLS_ENABLE", GetEnvOrDefaultBool("SMTP_STARTTLS_ENABLED", false))

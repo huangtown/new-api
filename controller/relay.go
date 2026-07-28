@@ -92,20 +92,22 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
-			// 异步推送报错邮件通知（不阻塞响应）
-			gopool.Go(func() {
-				channelInfo := ""
+			// Capture all request data before handing work to a goroutine. Gin contexts
+			// are pooled and must not be read after the handler returns.
+			if !c.GetBool("error_email_notified") {
+				method, path, channelInfo := "", "", ""
+				if c.Request != nil {
+					method, path = c.Request.Method, c.Request.URL.String()
+				}
 				if relayInfo != nil && relayInfo.ChannelMeta != nil {
 					channelInfo = fmt.Sprintf("\n渠道: #%d %s", relayInfo.ChannelMeta.ChannelId, common.GetContextKeyString(c, constant.ContextKeyChannelName))
 				}
-				service.NotifyError(
-					fmt.Sprintf("Relay Error (status=%d)", newAPIError.StatusCode),
-					fmt.Sprintf("请求: %s %s\n状态码: %d\n消息: %s%s\n请求ID: %s",
-						c.Request.Method, c.Request.URL.String(),
-						newAPIError.StatusCode, newAPIError.Error(),
-						channelInfo, requestId),
-				)
-			})
+				detail := fmt.Sprintf("请求: %s %s\n状态码: %d\n消息: %s%s\n请求ID: %s%s",
+					method, path, newAPIError.StatusCode, newAPIError.Error(), channelInfo, requestId,
+					service.BuildRetryChainDetail(c.GetStringSlice("use_channel")))
+				subject := fmt.Sprintf("Relay Error (status=%d)", newAPIError.StatusCode)
+				gopool.Go(func() { service.NotifyError(subject, detail) })
+			}
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError())
@@ -416,6 +418,15 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.Error())))
+	if common.ErrorEmailNotifyEnabled && strings.TrimSpace(common.ErrorEmailNotifyRecipients) != "" {
+		retryChain := service.BuildRetryChainDetail(c.GetStringSlice("use_channel"))
+		detail := fmt.Sprintf("请求ID: %s\n请求: %s\n渠道: #%d %s\n状态码: %d\n消息: %s%s",
+			c.GetString(common.RequestIdKey), c.Request.URL.String(), channelError.ChannelId, channelError.ChannelName,
+			err.StatusCode, err.Error(), retryChain)
+		c.Set("error_email_notified", true)
+		subject := fmt.Sprintf("Relay Error (channel=%d, status=%d)", channelError.ChannelId, err.StatusCode)
+		gopool.Go(func() { service.NotifyError(subject, detail) })
+	}
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 	if service.ShouldDisableChannel(err) && channelError.AutoBan {
@@ -451,6 +462,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		}
 		service.AppendChannelAffinityAdminInfo(c, adminInfo)
 		other["admin_info"] = adminInfo
+		other["retry_chain"] = c.GetStringSlice("use_channel")
 		startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
 		if startTime.IsZero() {
 			startTime = time.Now()

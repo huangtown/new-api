@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"net/smtp"
 	"slices"
 	"strings"
@@ -42,8 +43,10 @@ func smtpTLSConfig() *tls.Config {
 }
 
 func newSMTPClient(addr string) (*smtp.Client, error) {
+	timeout := time.Duration(SMTPTimeout) * time.Second
+	dialer := &net.Dialer{Timeout: timeout}
 	if SMTPSSLEnabled || (SMTPPort == 465 && !SMTPStartTLSEnabled) {
-		conn, err := tls.Dial("tcp", addr, smtpTLSConfig())
+		conn, err := tls.DialWithDialer(dialer, "tcp", addr, smtpTLSConfig())
 		if err != nil {
 			return nil, err
 		}
@@ -52,11 +55,18 @@ func newSMTPClient(addr string) (*smtp.Client, error) {
 			_ = conn.Close()
 			return nil, err
 		}
+		_ = conn.SetDeadline(time.Now().Add(timeout))
 		return client, nil
 	}
 
-	client, err := smtp.Dial(addr)
+	conn, err := dialer.Dial("tcp", addr)
 	if err != nil {
+		return nil, err
+	}
+	_ = conn.SetDeadline(time.Now().Add(timeout))
+	client, err := smtp.NewClient(conn, SMTPServer)
+	if err != nil {
+		_ = conn.Close()
 		return nil, err
 	}
 
