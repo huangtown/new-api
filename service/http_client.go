@@ -91,6 +91,22 @@ func GetHttpClient() *http.Client {
 	return httpClient
 }
 
+// WithHttpClientTimeout returns a request-scoped client that reuses the base
+// client's transport and connection pool while applying an independent total
+// timeout. The base client is never mutated, so concurrent channels cannot
+// overwrite one another's timeout.
+func WithHttpClientTimeout(client *http.Client, timeout time.Duration) *http.Client {
+	if client == nil || timeout <= 0 {
+		return client
+	}
+	return &http.Client{
+		Transport:     client.Transport,
+		CheckRedirect: client.CheckRedirect,
+		Jar:           client.Jar,
+		Timeout:       timeout,
+	}
+}
+
 // GetSSRFProtectedHTTPClient 返回带拨号时 SSRF 校验的客户端。
 // ssrfProtectedHTTPClient 由 InitHttpClient 在启动时初始化，运行期只读。
 func GetSSRFProtectedHTTPClient() *http.Client {

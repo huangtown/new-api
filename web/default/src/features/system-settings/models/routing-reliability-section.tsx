@@ -56,6 +56,61 @@ import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { safeNumberFieldProps } from '../utils/numeric-field'
+import { ChannelRelayTimeoutsEditor } from './channel-relay-timeouts-editor'
+import {
+  parseChannelRelayTimeouts,
+  serializeChannelRelayTimeouts,
+} from './channel-relay-timeouts'
+
+const channelRelayTimeoutSchema = z
+  .array(
+    z.object({
+      channelId: z.number(),
+      timeoutSeconds: z.number(),
+    })
+  )
+  .superRefine((entries, ctx) => {
+    const seen = new Set<number>()
+    let hasInvalidChannelId = false
+    let hasInvalidTimeout = false
+    let hasDuplicateChannelId = false
+
+    for (const entry of entries) {
+      if (!Number.isInteger(entry.channelId) || entry.channelId <= 0) {
+        hasInvalidChannelId = true
+      }
+      if (
+        !Number.isInteger(entry.timeoutSeconds) ||
+        entry.timeoutSeconds <= 0 ||
+        entry.timeoutSeconds > 86400
+      ) {
+        hasInvalidTimeout = true
+      }
+      if (seen.has(entry.channelId)) {
+        hasDuplicateChannelId = true
+      }
+      seen.add(entry.channelId)
+    }
+
+    if (hasInvalidChannelId) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Channel IDs must be positive integers',
+      })
+    }
+    if (hasInvalidTimeout) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Timeouts must be integers between 1 and 86400 seconds',
+      })
+    }
+    if (hasDuplicateChannelId) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Each channel ID can only be configured once',
+      })
+    }
+  })
 
 const numericString = z.string().refine((value) => {
   const trimmed = value.trim()
@@ -69,6 +124,7 @@ type ChannelTestMode = (typeof channelTestModes)[number]
 const routingReliabilitySchema = z
   .object({
     RetryTimes: z.coerce.number().min(0).max(10),
+    ChannelRelayTimeouts: channelRelayTimeoutSchema,
     ChannelDisableThreshold: numericString,
     AutomaticDisableChannelEnabled: z.boolean(),
     AutomaticEnableChannelEnabled: z.boolean(),
@@ -118,6 +174,7 @@ type RoutingReliabilityFormInput = z.input<typeof routingReliabilitySchema>
 type RoutingReliabilitySectionProps = {
   defaultValues: {
     RetryTimes: number
+    ChannelRelayTimeouts: string
     ChannelDisableThreshold: string
     AutomaticDisableChannelEnabled: boolean
     AutomaticEnableChannelEnabled: boolean
@@ -136,6 +193,7 @@ function normalizeLineEndings(value: string) {
 
 type NormalizedRoutingReliabilityValues = {
   RetryTimes: number
+  ChannelRelayTimeouts: string
   ChannelDisableThreshold: string
   AutomaticDisableChannelEnabled: boolean
   AutomaticEnableChannelEnabled: boolean
@@ -155,6 +213,9 @@ const buildFormDefaults = (
   defaults: RoutingReliabilitySectionProps['defaultValues']
 ): RoutingReliabilityFormInput => ({
   RetryTimes: defaults.RetryTimes ?? 0,
+  ChannelRelayTimeouts: parseChannelRelayTimeouts(
+    defaults.ChannelRelayTimeouts ?? '{}'
+  ),
   ChannelDisableThreshold: defaults.ChannelDisableThreshold ?? '',
   AutomaticDisableChannelEnabled: defaults.AutomaticDisableChannelEnabled,
   AutomaticEnableChannelEnabled: defaults.AutomaticEnableChannelEnabled,
@@ -178,6 +239,9 @@ const normalizeDefaults = (
   defaults: RoutingReliabilitySectionProps['defaultValues']
 ): NormalizedRoutingReliabilityValues => ({
   RetryTimes: defaults.RetryTimes ?? 0,
+  ChannelRelayTimeouts: serializeChannelRelayTimeouts(
+    parseChannelRelayTimeouts(defaults.ChannelRelayTimeouts ?? '{}')
+  ),
   ChannelDisableThreshold: (defaults.ChannelDisableThreshold ?? '').trim(),
   AutomaticDisableChannelEnabled: defaults.AutomaticDisableChannelEnabled,
   AutomaticEnableChannelEnabled: defaults.AutomaticEnableChannelEnabled,
@@ -203,6 +267,9 @@ const normalizeFormValues = (
   values: RoutingReliabilityFormValues
 ): NormalizedRoutingReliabilityValues => ({
   RetryTimes: values.RetryTimes,
+  ChannelRelayTimeouts: serializeChannelRelayTimeouts(
+    values.ChannelRelayTimeouts
+  ),
   ChannelDisableThreshold: values.ChannelDisableThreshold.trim(),
   AutomaticDisableChannelEnabled: values.AutomaticDisableChannelEnabled,
   AutomaticEnableChannelEnabled: values.AutomaticEnableChannelEnabled,
@@ -347,6 +414,26 @@ export function RoutingReliabilitySection({
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name='ChannelRelayTimeouts'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Channel request timeouts')}</FormLabel>
+                  <ChannelRelayTimeoutsEditor
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
+                  <FormDescription>
+                    {t(
+                      'Apply a total upstream request timeout to selected channels without changing other channels.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
 
           <Separator />

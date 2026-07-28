@@ -112,9 +112,15 @@ func SyncChannelCache(frequency int) {
 }
 
 func GetRandomSatisfiedChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
+	return GetRandomSatisfiedChannelExcluding(group, model, retry, requestPath, nil)
+}
+
+// GetRandomSatisfiedChannelExcluding selects a channel while excluding channels
+// that have already been attempted by the current relay request.
+func GetRandomSatisfiedChannelExcluding(group string, model string, retry int, requestPath string, excludedChannelIDs []int) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry, requestPath)
+		return GetChannelExcluding(group, model, retry, requestPath, excludedChannelIDs)
 	}
 
 	channelSyncLock.RLock()
@@ -134,6 +140,9 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 	}
 
 	if len(channels) == 1 {
+		if isChannelExcluded(channels[0], excludedChannelIDs) {
+			return nil, nil
+		}
 		if channel, ok := channelsIDM[channels[0]]; ok {
 			return channel, nil
 		}
@@ -164,7 +173,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 	var targetChannels []*Channel
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
-			if channel.GetPriority() == targetPriority {
+			if channel.GetPriority() == targetPriority && !isChannelExcluded(channelId, excludedChannelIDs) {
 				sumWeight += channel.GetWeight()
 				targetChannels = append(targetChannels, channel)
 			}
@@ -174,6 +183,9 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 	}
 
 	if len(targetChannels) == 0 {
+		if len(excludedChannelIDs) > 0 {
+			return nil, nil
+		}
 		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
 	}
 
@@ -206,6 +218,15 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 	}
 	// return null if no channel is not found
 	return nil, errors.New("channel not found")
+}
+
+func isChannelExcluded(channelID int, excludedChannelIDs []int) bool {
+	for _, excludedChannelID := range excludedChannelIDs {
+		if channelID == excludedChannelID {
+			return true
+		}
+	}
+	return false
 }
 
 // filterChannelsByRequestPathAndModel restricts candidates by request path and

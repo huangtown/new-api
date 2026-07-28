@@ -474,7 +474,16 @@ func sendPingData(c *gin.Context, mutex *sync.Mutex) error {
 func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	return doRequest(c, req, info)
 }
-func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
+
+// GetRelayHttpClient returns the shared relay client configured for the
+// selected channel, including its proxy and channel-specific total timeout.
+// The returned timeout wrapper reuses the shared transport and never mutates
+// the cached base client.
+func GetRelayHttpClient(info *common.RelayInfo) (*http.Client, error) {
+	if info == nil {
+		return nil, errors.New("relay info is nil")
+	}
+
 	var client *http.Client
 	var err error
 	if info.ChannelSetting.Proxy != "" {
@@ -484,6 +493,23 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		}
 	} else {
 		client = service.GetHttpClient()
+	}
+	if client == nil {
+		return nil, errors.New("relay HTTP client is not initialized")
+	}
+	if timeoutSeconds, ok := operation_setting.GetChannelRelayTimeout(info.ChannelId); ok {
+		client = service.WithHttpClientTimeout(client, time.Duration(timeoutSeconds)*time.Second)
+	}
+	return client, nil
+}
+
+func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
+	client, err := GetRelayHttpClient(info)
+	if err != nil {
+		return nil, err
+	}
+	if timeoutSeconds, ok := operation_setting.GetChannelRelayTimeout(info.ChannelId); ok {
+		logger.LogDebug(c, "channel relay timeout seconds: %d", timeoutSeconds)
 	}
 
 	var stopPinger context.CancelFunc

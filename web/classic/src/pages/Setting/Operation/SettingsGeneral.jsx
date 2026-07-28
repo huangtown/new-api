@@ -52,6 +52,7 @@ export default function GeneralSettings(props) {
     'general_setting.custom_currency_exchange_rate': '',
     QuotaPerUnit: '',
     RetryTimes: '',
+    ChannelRelayTimeouts: '{}',
     USDExchangeRate: '',
     DisplayTokenStatEnabled: false,
     DefaultCollapseSidebar: false,
@@ -86,11 +87,16 @@ export default function GeneralSettings(props) {
     setLoading(true);
     Promise.all(requestQueue)
       .then((res) => {
-        if (requestQueue.length === 1) {
-          if (res.includes(undefined)) return;
-        } else if (requestQueue.length > 1) {
-          if (res.includes(undefined))
-            return showError(t('部分保存失败，请重试'));
+        const failedResponseIndex = res.findIndex(
+          (response) => !response?.data?.success,
+        );
+        if (failedResponseIndex !== -1) {
+          const failedResponse = res[failedResponseIndex];
+          showError(
+            failedResponse?.data?.message || t('部分保存失败，请重试'),
+          );
+          props.refresh();
+          return;
         }
         showSuccess(t('保存成功'));
         props.refresh();
@@ -271,6 +277,19 @@ export default function GeneralSettings(props) {
                   placeholder={t('失败重试次数')}
                   onChange={handleFieldChange('RetryTimes')}
                   showClear
+                />
+              </Col>
+              <Col xs={24} sm={24} md={16} lg={16} xl={16}>
+                <Form.TextArea
+                  field={'ChannelRelayTimeouts'}
+                  label={t('渠道请求超时配置（JSON）')}
+                  initValue={'{}'}
+                  placeholder={'{"59":600,"60":300}'}
+                  extraText={t(
+                    '键为渠道 ID，值为该渠道的请求超时秒数；未配置渠道继续使用全局超时。',
+                  )}
+                  onChange={handleFieldChange('ChannelRelayTimeouts')}
+                  autosize
                 />
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>

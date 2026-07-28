@@ -295,6 +295,15 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case operation_setting.ChannelRelayTimeoutsOptionKey:
+		_, err = operation_setting.ParseChannelRelayTimeouts(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	case "console_setting.api_info":
 		err = console_setting.ValidateConsoleSettings(option.Value.(string), "ApiInfo")
 		if err != nil {

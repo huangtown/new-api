@@ -106,12 +106,21 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 }
 
 func GetChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
+	return GetChannelExcluding(group, model, retry, requestPath, nil)
+}
+
+// GetChannelExcluding selects a channel from the database while excluding
+// channels that have already been attempted by the current relay request.
+func GetChannelExcluding(group string, model string, retry int, requestPath string, excludedChannelIDs []int) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil
 	channelQuery, err := getChannelQuery(group, model, retry)
 	if err != nil {
 		return nil, err
+	}
+	if len(excludedChannelIDs) > 0 {
+		channelQuery = channelQuery.Where("channel_id NOT IN ?", excludedChannelIDs)
 	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) || common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		err = channelQuery.Order("weight DESC").Find(&abilities).Error

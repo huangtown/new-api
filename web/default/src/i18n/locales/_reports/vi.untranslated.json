@@ -1,0 +1,8 @@
+{
+  "Timeouts must be integers between 1 and 86400 seconds": "Timeouts must be integers between 1 and 86400 seconds",
+  "Apply a total upstream request timeout to selected channels without changing other channels.": "Apply a total upstream request timeout to selected channels without changing other channels.",
+  "Unlisted channels use the global RELAY_TIMEOUT value.": "Unlisted channels use the global RELAY_TIMEOUT value.",
+  "When a primary channel returns a matching error, automatically switch to a fallback channel.": "When a primary channel returns a matching error, automatically switch to a fallback channel.",
+  "Comma-separated channel IDs to use as fallback for all groups (e.g. \"10,11\").": "Comma-separated channel IDs to use as fallback for all groups (e.g. \"10,11\").",
+  "JSON mapping of group names to comma-separated fallback channel IDs. Overrides global setting for matching groups. Example: {\"default\":\"10,11\",\"vip\":\"20\"}": "JSON mapping of group names to comma-separated fallback channel IDs. Overrides global setting for matching groups. Example: {\"default\":\"10,11\",\"vip\":\"20\"}"
+}

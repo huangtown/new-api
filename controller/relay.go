@@ -287,7 +287,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 }
 
-// parseUsedChannelIds 将上下文中已使用的渠道ID字符串切片转为int切片，用于兜底时排除已用渠道。
+// parseUsedChannelIds 将上下文中已使用的渠道ID字符串切片转为int切片，用于重试和兜底时排除已用渠道。
 func parseUsedChannelIds(raw []string) []int {
 	var ids []int
 	for _, s := range raw {
@@ -341,7 +341,16 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 }
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
-	if info.ChannelMeta == nil {
+	usedChannelIDs := parseUsedChannelIds(c.GetStringSlice("use_channel"))
+	currentChannelID := c.GetInt("channel_id")
+	currentChannelUsed := false
+	for _, usedChannelID := range usedChannelIDs {
+		if usedChannelID == currentChannelID {
+			currentChannelUsed = true
+			break
+		}
+	}
+	if info.ChannelMeta == nil && !currentChannelUsed {
 		autoBan := c.GetBool("auto_ban")
 		autoBanInt := 1
 		if !autoBan {
@@ -354,6 +363,7 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 			AutoBan: &autoBanInt,
 		}, nil
 	}
+	retryParam.ExcludedChannelIDs = usedChannelIDs
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 
 	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
@@ -570,12 +580,6 @@ func RelayTask(c *gin.Context) {
 
 		if lockedCh, ok := relayInfo.LockedChannel.(*model.Channel); ok && lockedCh != nil {
 			channel = lockedCh
-			if retryParam.GetRetry() > 0 {
-				if setupErr := middleware.SetupContextForSelectedChannel(c, channel, relayInfo.OriginModelName); setupErr != nil {
-					taskErr = service.TaskErrorWrapperLocal(setupErr.Err, "setup_locked_channel_failed", http.StatusInternalServerError)
-					break
-				}
-			}
 		} else {
 			var channelErr *types.NewAPIError
 			channel, channelErr = getChannel(c, relayInfo, retryParam)
@@ -608,6 +612,9 @@ func RelayTask(c *gin.Context) {
 				*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey,
 					common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()),
 				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode))
+		}
+		if relayInfo.LockedChannel != nil {
+			break
 		}
 
 		if !shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry()) {

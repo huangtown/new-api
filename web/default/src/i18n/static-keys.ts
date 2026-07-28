@@ -33,6 +33,9 @@ export const STATIC_I18N_KEYS = [
   'Auto-disable rules',
   'Channel health checks',
   'Request retry',
+  'Channel IDs must be positive integers',
+  'Timeouts must be integers between 1 and 86400 seconds',
+  'Each channel ID can only be configured once',
 
   // System settings sidebar
   'System Administration',
