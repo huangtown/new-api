@@ -56,7 +56,7 @@ const fallbackSchema = z.object({
       const parsed = JSON.parse(value)
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false
       return Object.values(parsed).every((items) => Array.isArray(items) && items.every((item: any) =>
-        item && typeof item === 'object' && /^\\d+$/.test(String(item.channel)) &&
+        item && typeof item === 'object' && /^\d+$/.test(String(item.channel)) &&
         typeof item.rate === 'number' && Number.isFinite(item.rate) && item.rate > 0
       ))
     } catch { return false }

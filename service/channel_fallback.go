@@ -56,6 +56,22 @@ func ShouldTriggerFallback(err *types.NewAPIError) bool {
 // FallbackChannelIDs.
 func GetFallbackChannel(usedChannelIds []int, group string) (*model.Channel, error) {
 	var channelIDs string
+	// The billing-rate list is authoritative for a configured group: its
+	// element order is also the fallback priority order.
+	if rates, configured := fallbackRateEntries(group); configured {
+		for _, item := range rates {
+			id, err := strconv.Atoi(fmt.Sprint(item.Channel))
+			if err != nil || containsInt(usedChannelIds, id) {
+				continue
+			}
+			channel, err := model.GetChannelById(id, true)
+			if err != nil || channel.Status != common.ChannelStatusEnabled {
+				continue
+			}
+			return channel, nil
+		}
+		return nil, fmt.Errorf("no available fallback channel found in billing rates")
+	}
 
 	// 1) Try per-group config first
 	if group != "" && common.GroupFallbackChannelIDs != "" {
@@ -102,22 +118,30 @@ func GetFallbackChannel(usedChannelIds []int, group string) (*model.Channel, err
 
 // GetFallbackBillingRate returns an absolute standard-price multiplier.
 func GetFallbackBillingRate(channelID int, group string) float64 {
-	if common.GroupFallbackBillingRates == "" {
-		return 1
-	}
-	var groups map[string][]struct {
-		Channel string  `json:"channel"`
-		Rate    float64 `json:"rate"`
-	}
-	if json.Unmarshal([]byte(common.GroupFallbackBillingRates), &groups) != nil {
-		return 1
-	}
-	for _, item := range groups[group] {
-		if item.Channel == strconv.Itoa(channelID) && item.Rate > 0 {
+	entries, _ := fallbackRateEntries(group)
+	for _, item := range entries {
+		if fmt.Sprint(item.Channel) == strconv.Itoa(channelID) && item.Rate > 0 {
 			return item.Rate
 		}
 	}
 	return 1
+}
+
+type fallbackRateEntry struct {
+	Channel any     `json:"channel"`
+	Rate    float64 `json:"rate"`
+}
+
+func fallbackRateEntries(group string) ([]fallbackRateEntry, bool) {
+	if common.GroupFallbackBillingRates == "" {
+		return nil, false
+	}
+	var groups map[string][]fallbackRateEntry
+	if json.Unmarshal([]byte(common.GroupFallbackBillingRates), &groups) != nil {
+		return nil, false
+	}
+	entries, ok := groups[group]
+	return entries, ok
 }
 
 func splitAndTrim(s, sep string) []string {
