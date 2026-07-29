@@ -45,6 +45,7 @@ const defaultOperationsSettings: OperationsSettings = {
   FallbackStatusCodes: '400',
   FallbackTriggerKeywords: '',
   GroupFallbackChannelIDs: '',
+  GroupFallbackBillingRates: '',
   WorkerUrl: '',
   WorkerValidKey: '',
   WorkerAllowHttpImageRequestEnabled: false,

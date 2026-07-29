@@ -71,6 +71,7 @@ const OPERATIONS_SECTIONS = [
           FallbackStatusCodes: settings.FallbackStatusCodes,
           FallbackTriggerKeywords: settings.FallbackTriggerKeywords,
           GroupFallbackChannelIDs: settings.GroupFallbackChannelIDs,
+          GroupFallbackBillingRates: settings.GroupFallbackBillingRates,
         }}
       />
     ),
