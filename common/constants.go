@@ -122,6 +122,10 @@ var InsecureTLSConfig = &tls.Config{InsecureSkipVerify: true}
 var ErrorEmailNotifyEnabled = false
 var ErrorEmailNotifyRecipients = ""
 
+var PushPlusEnabled = false
+var PushPlusToken = ""
+var PushPlusTopic = ""
+
 var FallbackEnabled = false
 var FallbackChannelIDs = ""
 var FallbackStatusCodes = "400"
