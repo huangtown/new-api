@@ -68,6 +68,9 @@ func InitOptionMap() {
 	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
 	common.OptionMap["ErrorEmailNotifyEnabled"] = strconv.FormatBool(common.ErrorEmailNotifyEnabled)
 	common.OptionMap["ErrorEmailNotifyRecipients"] = common.ErrorEmailNotifyRecipients
+	common.OptionMap["PushPlusEnabled"] = strconv.FormatBool(common.PushPlusEnabled)
+	common.OptionMap["PushPlusToken"] = common.PushPlusToken
+	common.OptionMap["PushPlusTopic"] = common.PushPlusTopic
 	common.OptionMap["FallbackEnabled"] = strconv.FormatBool(common.FallbackEnabled)
 	common.OptionMap["FallbackChannelIDs"] = common.FallbackChannelIDs
 	common.OptionMap["FallbackStatusCodes"] = common.FallbackStatusCodes
@@ -369,6 +372,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.SMTPForceAuthLogin = boolValue
 		case "ErrorEmailNotifyEnabled":
 			common.ErrorEmailNotifyEnabled = boolValue
+		case "PushPlusEnabled":
+			common.PushPlusEnabled = boolValue
 		case "FallbackEnabled":
 			common.FallbackEnabled = boolValue
 		case "WorkerAllowHttpImageRequestEnabled":
@@ -395,6 +400,10 @@ func updateOptionMap(key string, value string) (err error) {
 		common.SMTPToken = value
 	case "ErrorEmailNotifyRecipients":
 		common.ErrorEmailNotifyRecipients = value
+	case "PushPlusToken":
+		common.PushPlusToken = value
+	case "PushPlusTopic":
+		common.PushPlusTopic = value
 	case "FallbackChannelIDs":
 		common.FallbackChannelIDs = value
 	case "FallbackStatusCodes":

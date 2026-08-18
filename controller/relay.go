@@ -95,18 +95,21 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			// Capture all request data before handing work to a goroutine. Gin contexts
 			// are pooled and must not be read after the handler returns.
 			if !c.GetBool("error_email_notified") {
-				method, path, channelInfo := "", "", ""
-				if c.Request != nil {
-					method, path = c.Request.Method, c.Request.URL.String()
+				if (common.ErrorEmailNotifyEnabled && strings.TrimSpace(common.ErrorEmailNotifyRecipients) != "") ||
+					(common.PushPlusEnabled && strings.TrimSpace(common.PushPlusToken) != "") {
+					method, path, channelInfo := "", "", ""
+					if c.Request != nil {
+						method, path = c.Request.Method, c.Request.URL.String()
+					}
+					if relayInfo != nil && relayInfo.ChannelMeta != nil {
+						channelInfo = fmt.Sprintf("\n渠道: #%d %s", relayInfo.ChannelMeta.ChannelId, common.GetContextKeyString(c, constant.ContextKeyChannelName))
+					}
+					detail := fmt.Sprintf("请求: %s %s\n状态码: %d\n消息: %s%s\n请求ID: %s%s",
+						method, path, newAPIError.StatusCode, newAPIError.Error(), channelInfo, requestId,
+						service.BuildRetryChainDetail(c.GetStringSlice("use_channel")))
+					subject := fmt.Sprintf("Relay Error (status=%d)", newAPIError.StatusCode)
+					gopool.Go(func() { service.NotifyError(subject, detail) })
 				}
-				if relayInfo != nil && relayInfo.ChannelMeta != nil {
-					channelInfo = fmt.Sprintf("\n渠道: #%d %s", relayInfo.ChannelMeta.ChannelId, common.GetContextKeyString(c, constant.ContextKeyChannelName))
-				}
-				detail := fmt.Sprintf("请求: %s %s\n状态码: %d\n消息: %s%s\n请求ID: %s%s",
-					method, path, newAPIError.StatusCode, newAPIError.Error(), channelInfo, requestId,
-					service.BuildRetryChainDetail(c.GetStringSlice("use_channel")))
-				subject := fmt.Sprintf("Relay Error (status=%d)", newAPIError.StatusCode)
-				gopool.Go(func() { service.NotifyError(subject, detail) })
 			}
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:

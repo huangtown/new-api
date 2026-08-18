@@ -99,6 +99,10 @@ func InitEnv() {
 	ErrorEmailNotifyEnabled = GetEnvOrDefaultBool("ERROR_EMAIL_NOTIFY_ENABLED", false)
 	ErrorEmailNotifyRecipients = GetEnvOrDefaultString("ERROR_EMAIL_NOTIFY_RECIPIENTS", "")
 
+	PushPlusEnabled = GetEnvOrDefaultBool("PUSHPLUS_ENABLED", false)
+	PushPlusToken = GetEnvOrDefaultString("PUSHPLUS_TOKEN", "")
+	PushPlusTopic = GetEnvOrDefaultString("PUSHPLUS_TOPIC", "")
+
 	FallbackEnabled = GetEnvOrDefaultBool("FALLBACK_ENABLED", false)
 	FallbackChannelIDs = GetEnvOrDefaultString("FALLBACK_CHANNEL_IDS", "")
 	FallbackStatusCodes = GetEnvOrDefaultString("FALLBACK_STATUS_CODES", "400")
