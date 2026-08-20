@@ -62,7 +62,7 @@ func TestApplyUsagePostProcessingSkipsOpenRouter(t *testing.T) {
 		u := &dto.Usage{
 			PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 100},
 		}
-		info := &relaycommon.RelayInfo{ChannelType: constant.ChannelTypeOpenRouter}
+		info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenRouter}}
 		applyUsagePostProcessing(info, u, nil)
 		require.Equal(t, 100, u.PromptTokensDetails.CachedTokens,
 			"OpenRouter must NOT amplify CachedTokens")
@@ -72,7 +72,7 @@ func TestApplyUsagePostProcessingSkipsOpenRouter(t *testing.T) {
 		u := &dto.Usage{
 			PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 100},
 		}
-		info := &relaycommon.RelayInfo{ChannelType: constant.ChannelTypeOpenAI}
+		info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenAI}}
 		applyUsagePostProcessing(info, u, nil)
 		require.Equal(t, 200, u.PromptTokensDetails.CachedTokens,
 			"non-OpenRouter channel must amplify CachedTokens")
@@ -87,7 +87,7 @@ func TestApplyUsagePostProcessingSkipsOpenRouter(t *testing.T) {
 	})
 
 	t.Run("nil usage is a safe no-op", func(t *testing.T) {
-		info := &relaycommon.RelayInfo{ChannelType: constant.ChannelTypeOpenAI}
+		info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenAI}}
 		require.NotPanics(t, func() { applyUsagePostProcessing(info, nil, nil) })
 	})
 }
