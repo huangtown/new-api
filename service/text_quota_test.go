@@ -740,3 +740,122 @@ func TestCalculateTextQuotaSummaryFixedPriceAppliesImageCountOnceAndAllowsOverri
 	summary = calculateTextQuotaSummary(ctx, relayInfo, usage)
 	require.Equal(t, 120000, summary.Quota)
 }
+
+// TestCalculateTextQuotaSummaryAppliesCacheReadAmplification verifies that the
+// runtime CacheReadAmplificationRatio is multiplied into summary.CacheTokens
+// (and only into that field — PromptTokens, ImageTokens, etc. stay untouched).
+func TestCalculateTextQuotaSummaryAppliesCacheReadAmplification(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cases := []struct {
+		name           string
+		ratio          float64
+		wantCacheTokens int
+	}{
+		{name: "default 1.0 is identity", ratio: 1.0, wantCacheTokens: 100},
+		{name: "amplification 2.0 doubles cache read", ratio: 2.0, wantCacheTokens: 200},
+		{name: "amplification 0.5 halves cache read", ratio: 0.5, wantCacheTokens: 50},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Save and restore so tests don't leak global state.
+			prev := common.CacheReadAmplificationRatio
+			common.CacheReadAmplificationRatio = tc.ratio
+			defer func() { common.CacheReadAmplificationRatio = prev }()
+
+			w := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(w)
+
+			usage := &dto.Usage{
+				PromptTokens:     1000,
+				CompletionTokens: 200,
+				PromptTokensDetails: dto.InputTokenDetails{
+					CachedTokens:         100,
+					ImageTokens:          30,
+					AudioTokens:          5,
+					CachedCreationTokens: 10,
+				},
+			}
+			relayInfo := &relaycommon.RelayInfo{
+				RelayFormat:             types.RelayFormatOpenAI,
+				FinalRequestRelayFormat: types.RelayFormatOpenAI,
+				OriginModelName:         "gpt-4o-mini",
+				PriceData: types.PriceData{
+					ModelRatio:      1,
+					CompletionRatio: 1,
+					CacheRatio:      0.1,
+					GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+				},
+				StartTime: time.Now(),
+			}
+
+			summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+
+			require.Equal(t, tc.wantCacheTokens, summary.CacheTokens,
+				"summary.CacheTokens must be PromptTokensDetails.CachedTokens × CacheReadAmplificationRatio")
+			// Sanity: non-cache fields are unaffected by the amplification.
+			require.Equal(t, 1000, summary.PromptTokens)
+			require.Equal(t, 200, summary.CompletionTokens)
+			require.Equal(t, 30, summary.ImageTokens)
+			require.Equal(t, 5, summary.AudioTokens)
+			require.Equal(t, 10, summary.CacheCreationTokens)
+		})
+	}
+}
+
+// TestCalcOpenRouterCacheCreateTokensIgnoresAmplification locks the contract
+// that CalcOpenRouterCacheCreateTokens must NOT receive the amplified cache
+// read token count — it reverse-calculates cache creation tokens from the
+// upstream cost, so feeding it the amplified value would skew the math.
+func TestCalcOpenRouterCacheCreateTokensIgnoresAmplification(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	prev := common.CacheReadAmplificationRatio
+	common.CacheReadAmplificationRatio = 10.0 // aggressive — would skew the reverse calc if applied
+	defer func() { common.CacheReadAmplificationRatio = prev }()
+
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	usage := dto.Usage{
+		PromptTokens:     1000,
+		CompletionTokens: 200,
+		Cost:             0.05,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 100,
+		},
+	}
+	priceData := types.PriceData{
+		ModelRatio:         1,
+		CompletionRatio:    1,
+		CacheRatio:         0.1,
+		CacheCreationRatio: 1.25,
+		GroupRatioInfo:     types.GroupRatioInfo{GroupRatio: 1},
+	}
+
+	// Seed a context so ctx.GetString calls inside the helper don't crash if
+	// any indirect path reads them; the function itself does not use the ctx.
+	_ = ctx
+
+	got := CalcOpenRouterCacheCreateTokens(usage, priceData)
+
+	// Hand-recompute the expected value with the ORIGINAL CachedTokens=100
+	// (not 1000). If the implementation ever wires CacheReadAmplificationRatio
+	// into this function, got will diverge from the expected.
+	quotaPrice := priceData.ModelRatio / common.QuotaPerUnit
+	promptCacheReadPrice := quotaPrice * priceData.CacheRatio
+	completionPrice := quotaPrice * priceData.CompletionRatio
+	promptCacheCreatePrice := quotaPrice * priceData.CacheCreationRatio
+	totalPromptTokens := float64(usage.PromptTokens)
+	completionTokens := float64(usage.CompletionTokens)
+	promptCacheReadTokens := float64(usage.PromptTokensDetails.CachedTokens)
+	want := int(math.Round((usage.Cost.(float64) -
+		totalPromptTokens*quotaPrice +
+		promptCacheReadTokens*(quotaPrice-promptCacheReadPrice) -
+		completionTokens*completionPrice) /
+		(promptCacheCreatePrice - quotaPrice)))
+
+	require.Equal(t, want, got,
+		"CalcOpenRouterCacheCreateTokens must ignore CacheReadAmplificationRatio")
+}
