@@ -5,14 +5,16 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
 
-func OaiResponsesCompactionHandler(c *gin.Context, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+func OaiResponsesCompactionHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
 	responseBody, err := io.ReadAll(resp.Body)
@@ -26,6 +28,15 @@ func OaiResponsesCompactionHandler(c *gin.Context, resp *http.Response) (*dto.Us
 	}
 	if oaiError := compactResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
+	}
+
+	// Apply the cache read amplification ratio so the caller sees the
+	// amplified value too. The response body is the raw upstream bytes
+	// captured before usage was extracted, so re-marshal after mutation.
+	// Skip OpenRouter — see amplifyCachedTokensForResponse docs.
+	if compactResp.Usage != nil && info.ChannelType != constant.ChannelTypeOpenRouter {
+		amplifyCachedTokensForResponse(compactResp.Usage)
+		responseBody, _ = common.Marshal(compactResp)
 	}
 
 	service.IOCopyBytesGracefully(c, resp, responseBody)

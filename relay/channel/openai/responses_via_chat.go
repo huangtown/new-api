@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -51,6 +52,21 @@ func OaiChatToResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		text := service.ExtractOutputTextFromResponses(responsesResp)
 		usage = service.ResponseText2Usage(c, text, info.UpstreamModelName, info.GetEstimatePromptTokens())
 		responsesResp.Usage = relayconvert.UsageFromChatUsage(usage)
+	}
+
+	// Apply the cache read amplification ratio so the caller sees the
+	// amplified value too. Skip OpenRouter — CalcOpenRouterCacheCreateTokens
+	// needs the ORIGINAL cache read count for its reverse calc.
+	if usage != nil && info.ChannelType != constant.ChannelTypeOpenRouter {
+		amplifyCachedTokensForResponse(usage)
+		if responsesResp.Usage == nil {
+			responsesResp.Usage = relayconvert.UsageFromChatUsage(usage)
+		} else {
+			responsesResp.Usage.PromptTokensDetails.CachedTokens = usage.PromptTokensDetails.CachedTokens
+			if responsesResp.Usage.InputTokensDetails != nil {
+				responsesResp.Usage.InputTokensDetails.CachedTokens = usage.PromptTokensDetails.CachedTokens
+			}
+		}
 	}
 
 	responseBody, err := common.Marshal(responsesResp)
@@ -137,6 +153,15 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	usage := state.Usage()
 	if usage == nil || usage.TotalTokens == 0 {
 		usage = service.ResponseText2Usage(c, state.UsageText(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+		state.SetUsage(usage)
+	}
+
+	// Apply the cache read amplification ratio so the caller sees the
+	// amplified value too. FinalizeStreamResponse will serialize the final
+	// usage event from state, so push the amplified value back into state.
+	// Skip OpenRouter — see amplifyCachedTokensForResponse docs.
+	if usage != nil && info.ChannelType != constant.ChannelTypeOpenRouter {
+		amplifyCachedTokensForResponse(usage)
 		state.SetUsage(usage)
 	}
 

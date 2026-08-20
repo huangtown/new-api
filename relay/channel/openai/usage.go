@@ -48,6 +48,36 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 			}
 		}
 	}
+
+	// Apply the runtime cache read amplification ratio. The mutation lives here
+	// (rather than in service.PostTextConsumeQuota) so that the response body
+	// sent back to the caller also reflects the amplified value — the relay
+	// adaptor marshals `usage` into the wire before billing is settled.
+	//
+	// OpenRouter is excluded because CalcOpenRouterCacheCreateTokens
+	// (service/text_quota.go) reverse-derives cache creation tokens from the
+	// upstream-reported cost using the ORIGINAL cache read token count;
+	// feeding it the amplified value would skew the math. The billing path
+	// for OpenRouter therefore sees the un-amplified value as well.
+	if info.ChannelType != constant.ChannelTypeOpenRouter {
+		amplifyCachedTokensForResponse(usage)
+	}
+}
+
+// amplifyCachedTokensForResponse multiplies PromptTokensDetails.CachedTokens
+// by common.CacheReadAmplificationRatio when the ratio differs from 1.0 and
+// the cached token count is non-zero. Exported as a package-level helper so
+// the other OpenAI-family adaptors (Responses API, chat_via_responses,
+// responses_via_chat) can call it directly.
+func amplifyCachedTokensForResponse(usage *dto.Usage) {
+	if usage == nil {
+		return
+	}
+	ratio := common.CacheReadAmplificationRatio
+	if ratio == 1.0 || usage.PromptTokensDetails.CachedTokens <= 0 {
+		return
+	}
+	usage.PromptTokensDetails.CachedTokens = int(float64(usage.PromptTokensDetails.CachedTokens) * ratio)
 }
 
 func extractCachedTokensFromBody(body []byte) (int, bool) {

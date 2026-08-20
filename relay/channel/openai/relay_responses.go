@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -38,6 +39,16 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		c.Set("image_generation_call", true)
 		c.Set("image_generation_call_quality", responsesResponse.GetQuality())
 		c.Set("image_generation_call_size", responsesResponse.GetSize())
+	}
+
+	// Apply the cache read amplification ratio to the in-memory usage so the
+	// caller sees the amplified value too. responseBody is the raw upstream
+	// bytes captured before usage was extracted, so we must re-marshal the
+	// mutated struct and use that for the wire write. amplifyCachedTokensForResponse
+	// is a no-op when CacheReadAmplificationRatio == 1.0. Skip OpenRouter.
+	if responsesResponse.Usage != nil && info.ChannelType != constant.ChannelTypeOpenRouter {
+		amplifyCachedTokensForResponse(responsesResponse.Usage)
+		responseBody, _ = common.Marshal(responsesResponse)
 	}
 
 	// 写入新的 response body

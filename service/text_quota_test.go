@@ -741,25 +741,28 @@ func TestCalculateTextQuotaSummaryFixedPriceAppliesImageCountOnceAndAllowsOverri
 	require.Equal(t, 120000, summary.Quota)
 }
 
-// TestCalculateTextQuotaSummaryAppliesCacheReadAmplification verifies that the
-// runtime CacheReadAmplificationRatio is multiplied into summary.CacheTokens
-// (and only into that field — PromptTokens, ImageTokens, etc. stay untouched).
-func TestCalculateTextQuotaSummaryAppliesCacheReadAmplification(t *testing.T) {
+// TestCalculateTextQuotaSummaryReadsAlreadyAmplifiedCachedTokens verifies
+// that calculateTextQuotaSummary does NOT itself apply the runtime
+// CacheReadAmplificationRatio. Phase 2 moved amplification to the relay
+// adaptor layer so that the caller also sees the amplified value; this test
+// locks in the new contract: summary.CacheTokens == usage.PromptTokensDetails.CachedTokens
+// regardless of the ratio. Sanity: non-cache fields are unaffected.
+func TestCalculateTextQuotaSummaryReadsAlreadyAmplifiedCachedTokens(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cases := []struct {
-		name           string
-		ratio          float64
+		name            string
+		ratio           float64
+		inputCacheTokens int
 		wantCacheTokens int
 	}{
-		{name: "default 1.0 is identity", ratio: 1.0, wantCacheTokens: 100},
-		{name: "amplification 2.0 doubles cache read", ratio: 2.0, wantCacheTokens: 200},
-		{name: "amplification 0.5 halves cache read", ratio: 0.5, wantCacheTokens: 50},
+		{name: "ratio 1.0 with CachedTokens=100", ratio: 1.0, inputCacheTokens: 100, wantCacheTokens: 100},
+		{name: "ratio 2.0 with CachedTokens=200 (already amplified upstream)", ratio: 2.0, inputCacheTokens: 200, wantCacheTokens: 200},
+		{name: "ratio 0.5 with CachedTokens=50 (already amplified upstream)", ratio: 0.5, inputCacheTokens: 50, wantCacheTokens: 50},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Save and restore so tests don't leak global state.
 			prev := common.CacheReadAmplificationRatio
 			common.CacheReadAmplificationRatio = tc.ratio
 			defer func() { common.CacheReadAmplificationRatio = prev }()
@@ -771,7 +774,7 @@ func TestCalculateTextQuotaSummaryAppliesCacheReadAmplification(t *testing.T) {
 				PromptTokens:     1000,
 				CompletionTokens: 200,
 				PromptTokensDetails: dto.InputTokenDetails{
-					CachedTokens:         100,
+					CachedTokens:         tc.inputCacheTokens,
 					ImageTokens:          30,
 					AudioTokens:          5,
 					CachedCreationTokens: 10,
@@ -793,8 +796,8 @@ func TestCalculateTextQuotaSummaryAppliesCacheReadAmplification(t *testing.T) {
 			summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
 
 			require.Equal(t, tc.wantCacheTokens, summary.CacheTokens,
-				"summary.CacheTokens must be PromptTokensDetails.CachedTokens × CacheReadAmplificationRatio")
-			// Sanity: non-cache fields are unaffected by the amplification.
+				"summary.CacheTokens must equal usage.PromptTokensDetails.CachedTokens (amplification happens in adaptor, not here)")
+			// Sanity: non-cache fields are unaffected.
 			require.Equal(t, 1000, summary.PromptTokens)
 			require.Equal(t, 200, summary.CompletionTokens)
 			require.Equal(t, 30, summary.ImageTokens)
@@ -858,4 +861,76 @@ func TestCalcOpenRouterCacheCreateTokensIgnoresAmplification(t *testing.T) {
 
 	require.Equal(t, want, got,
 		"CalcOpenRouterCacheCreateTokens must ignore CacheReadAmplificationRatio")
+}
+
+// TestCalculateTextQuotaSummaryOpenRouterReverseCalcUsesOriginalCachedTokens
+// verifies the end-to-end contract for the OpenRouter Claude billing path:
+// Phase 2 moved amplification to the relay adaptor. For OpenRouter channels
+// the adaptor SKIPS amplification (so the caller still sees upstream values),
+// and CalcOpenRouterCacheCreateTokens continues to see the ORIGINAL cached
+// token count to reverse-derive cache creation tokens from the upstream cost.
+// This test simulates that: usage already carries the ORIGINAL value (as the
+// adaptor would have left it), and the resulting summary.CacheCreationTokens
+// must be the same as a hand-computed expected that uses the original count.
+func TestCalculateTextQuotaSummaryOpenRouterReverseCalcUsesOriginalCachedTokens(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Non-1.0 ratio simulates the case where a non-OpenRouter request
+	// elsewhere in the same process would have amplified; for the OpenRouter
+	// path the adaptor skipped amplification so the global ratio does not
+	// affect the input here.
+	prev := common.CacheReadAmplificationRatio
+	common.CacheReadAmplificationRatio = 5.0
+	defer func() { common.CacheReadAmplificationRatio = prev }()
+
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	// Input: ORIGINAL upstream values (CachedTokens=100, NOT 500).
+	usage := &dto.Usage{
+		PromptTokens:     1000,
+		CompletionTokens: 200,
+		Cost:             0.05,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 100,
+		},
+	}
+	priceData := types.PriceData{
+		ModelRatio:         1,
+		CompletionRatio:    1,
+		CacheRatio:         0.1,
+		CacheCreationRatio: 1.25,
+		GroupRatioInfo:     types.GroupRatioInfo{GroupRatio: 1},
+	}
+	relayInfo := &relaycommon.RelayInfo{
+		RelayFormat:             types.RelayFormatOpenAI,
+		FinalRequestRelayFormat: types.RelayFormatClaude,
+		OriginModelName:         "claude-3-5-sonnet",
+		PriceData:               priceData,
+		ChannelType:             constant.ChannelTypeOpenRouter,
+		StartTime:               time.Now(),
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+
+	// Hand-recompute the expected CacheCreationTokens using the ORIGINAL
+	// CachedTokens=100 (NOT 500). If the implementation ever feeds the
+	// amplified count into CalcOpenRouterCacheCreateTokens, the resulting
+	// summary.CacheCreationTokens will diverge from want.
+	quotaPrice := priceData.ModelRatio / common.QuotaPerUnit
+	promptCacheReadPrice := quotaPrice * priceData.CacheRatio
+	completionPrice := quotaPrice * priceData.CompletionRatio
+	promptCacheCreatePrice := quotaPrice * priceData.CacheCreationRatio
+	wantCacheCreation := int(math.Round((usage.Cost.(float64) -
+		float64(usage.PromptTokens)*quotaPrice +
+		float64(usage.PromptTokensDetails.CachedTokens)*(quotaPrice-promptCacheReadPrice) -
+		float64(usage.CompletionTokens)*completionPrice) /
+		(promptCacheCreatePrice - quotaPrice)))
+
+	require.Equal(t, wantCacheCreation, summary.CacheCreationTokens,
+		"OpenRouter path must reverse-calc using ORIGINAL CachedTokens")
+	// summary.CacheTokens itself reflects the input verbatim (no
+	// amplification inside calculateTextQuotaSummary).
+	require.Equal(t, 100, summary.CacheTokens,
+		"summary.CacheTokens must equal the (un-amplified) usage input")
 }
