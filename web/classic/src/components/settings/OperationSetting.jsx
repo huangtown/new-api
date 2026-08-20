@@ -42,6 +42,7 @@ const OperationSetting = () => {
     TopUpLink: '',
     'general_setting.docs_link': '',
     QuotaPerUnit: 0,
+    CacheReadAmplificationRatio: 0,
     USDExchangeRate: 0,
     RetryTimes: 0,
     ChannelRelayTimeouts: '{}',
