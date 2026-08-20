@@ -102,6 +102,13 @@ func InitEnv() {
 	PushPlusEnabled = GetEnvOrDefaultBool("PUSHPLUS_ENABLED", false)
 	PushPlusToken = GetEnvOrDefaultString("PUSHPLUS_TOKEN", "")
 	PushPlusTopic = GetEnvOrDefaultString("PUSHPLUS_TOPIC", "")
+	PushPlusChannel = GetEnvOrDefaultString("PUSHPLUS_CHANNEL", "wechat")
+
+	if v := os.Getenv("CACHE_READ_AMPLIFICATION_RATIO"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
+			CacheReadAmplificationRatio = f
+		}
+	}
 
 	FallbackEnabled = GetEnvOrDefaultBool("FALLBACK_ENABLED", false)
 	FallbackChannelIDs = GetEnvOrDefaultString("FALLBACK_CHANNEL_IDS", "")
