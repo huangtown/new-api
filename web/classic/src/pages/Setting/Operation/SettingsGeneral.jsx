@@ -51,6 +51,7 @@ export default function GeneralSettings(props) {
     'general_setting.custom_currency_symbol': '¤',
     'general_setting.custom_currency_exchange_rate': '',
     QuotaPerUnit: '',
+    CacheReadAmplificationRatio: '',
     RetryTimes: '',
     ChannelRelayTimeouts: '{}',
     USDExchangeRate: '',
@@ -277,6 +278,21 @@ export default function GeneralSettings(props) {
                   placeholder={t('失败重试次数')}
                   onChange={handleFieldChange('RetryTimes')}
                   showClear
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  field={'CacheReadAmplificationRatio'}
+                  label={t('缓存读取放大系数')}
+                  initValue={''}
+                  min={0.01}
+                  step={0.1}
+                  precision={4}
+                  placeholder={t('默认 1.0（不放大）')}
+                  extraText={t(
+                    '乘在 cache read token 数上，影响计费与日志展示；设为 1.0 表示不放大',
+                  )}
+                  onChange={handleFieldChange('CacheReadAmplificationRatio')}
                 />
               </Col>
               <Col xs={24} sm={24} md={16} lg={16} xl={16}>

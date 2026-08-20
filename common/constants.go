@@ -125,6 +125,9 @@ var ErrorEmailNotifyRecipients = ""
 var PushPlusEnabled = false
 var PushPlusToken = ""
 var PushPlusTopic = ""
+var PushPlusChannel = "wechat"
+
+var CacheReadAmplificationRatio float64 = 1.0
 
 var FallbackEnabled = false
 var FallbackChannelIDs = ""

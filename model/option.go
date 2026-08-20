@@ -71,6 +71,7 @@ func InitOptionMap() {
 	common.OptionMap["PushPlusEnabled"] = strconv.FormatBool(common.PushPlusEnabled)
 	common.OptionMap["PushPlusToken"] = common.PushPlusToken
 	common.OptionMap["PushPlusTopic"] = common.PushPlusTopic
+	common.OptionMap["PushPlusChannel"] = common.PushPlusChannel
 	common.OptionMap["FallbackEnabled"] = strconv.FormatBool(common.FallbackEnabled)
 	common.OptionMap["FallbackChannelIDs"] = common.FallbackChannelIDs
 	common.OptionMap["FallbackStatusCodes"] = common.FallbackStatusCodes
@@ -154,6 +155,7 @@ func InitOptionMap() {
 	common.OptionMap["ModelPrice"] = ratio_setting.ModelPrice2JSONString()
 	common.OptionMap["CacheRatio"] = ratio_setting.CacheRatio2JSONString()
 	common.OptionMap["CreateCacheRatio"] = ratio_setting.CreateCacheRatio2JSONString()
+	common.OptionMap["CacheReadAmplificationRatio"] = strconv.FormatFloat(common.CacheReadAmplificationRatio, 'f', -1, 64)
 	common.OptionMap["GroupRatio"] = ratio_setting.GroupRatio2JSONString()
 	common.OptionMap["GroupGroupRatio"] = ratio_setting.GroupGroupRatio2JSONString()
 	common.OptionMap["UserUsableGroups"] = setting.UserUsableGroups2JSONString()
@@ -404,6 +406,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.PushPlusToken = value
 	case "PushPlusTopic":
 		common.PushPlusTopic = value
+	case "PushPlusChannel":
+		common.PushPlusChannel = value
 	case "FallbackChannelIDs":
 		common.FallbackChannelIDs = value
 	case "FallbackStatusCodes":
@@ -576,6 +580,10 @@ func updateOptionMap(key string, value string) (err error) {
 		err = ratio_setting.UpdateCacheRatioByJSONString(value)
 	case "CreateCacheRatio":
 		err = ratio_setting.UpdateCreateCacheRatioByJSONString(value)
+	case "CacheReadAmplificationRatio":
+		if v, parseErr := strconv.ParseFloat(value, 64); parseErr == nil && v > 0 {
+			common.CacheReadAmplificationRatio = v
+		}
 	case "ImageRatio":
 		err = ratio_setting.UpdateImageRatioByJSONString(value)
 	case "AudioRatio":
