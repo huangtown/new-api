@@ -48,6 +48,7 @@ const RatioSetting = () => {
     ExposeRatioEnabled: false,
     UserUsableGroups: '',
     'group_ratio_setting.group_special_usable_group': '',
+    GroupCacheReadAmplificationRatio: '',
   });
 
   const [loading, setLoading] = useState(false);

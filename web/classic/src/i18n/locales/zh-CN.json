@@ -1,5 +1,10 @@
 {
   "translation": {
+    "分组缓存读取放大倍率": "分组缓存读取放大倍率",
+    "为不同分组设置缓存读取放大倍率，倍率会乘以实际缓存读取token数；未配置的分组使用通用设置中的默认值": "为不同分组设置缓存读取放大倍率，倍率会乘以实际缓存读取token数；未配置的分组使用通用设置中的默认值",
+    "缓存读取放大倍率": "缓存读取放大倍率",
+    "为一个 JSON 文本，键为分组名称，值为放大倍率": "为一个 JSON 文本，键为分组名称，值为放大倍率",
+    "分组缓存读取放大倍率设置，格式为 JSON 字符串，例如：{\"default\": 1, \"vip\": 1.5, \"svip\": 2}，表示 vip 分组的放大倍率为 1.5。未配置的分组使用通用设置中的默认值": "分组缓存读取放大倍率设置，格式为 JSON 字符串，例如：{\"default\": 1, \"vip\": 1.5, \"svip\": 2}，表示 vip 分组的放大倍率为 1.5。未配置的分组使用通用设置中的默认值",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}",
     " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + 文件搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",

@@ -5,6 +5,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
 func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, responseBody []byte) {
@@ -60,20 +61,30 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 	// feeding it the amplified value would skew the math. The billing path
 	// for OpenRouter therefore sees the un-amplified value as well.
 	if info.ChannelType != constant.ChannelTypeOpenRouter {
-		amplifyCachedTokensForResponse(usage)
+		amplifyCachedTokensForResponse(info, usage)
 	}
 }
 
 // amplifyCachedTokensForResponse multiplies PromptTokensDetails.CachedTokens
-// by common.CacheReadAmplificationRatio when the ratio differs from 1.0 and
-// the cached token count is non-zero. Exported as a package-level helper so
-// the other OpenAI-family adaptors (Responses API, chat_via_responses,
-// responses_via_chat) can call it directly.
-func amplifyCachedTokensForResponse(usage *dto.Usage) {
+// by the effective cache read amplification ratio for the relay's
+// using-group when the ratio differs from 1.0 and the cached token count is
+// non-zero. Exported as a package-level helper so the other OpenAI-family
+// adaptors (Responses API, chat_via_responses, responses_via_chat) can call
+// it directly.
+//
+// When info is nil (only the test helper does this), we fall back to the
+// global common.CacheReadAmplificationRatio for symmetry with the per-group
+// fallback path.
+func amplifyCachedTokensForResponse(info *relaycommon.RelayInfo, usage *dto.Usage) {
 	if usage == nil {
 		return
 	}
-	ratio := common.CacheReadAmplificationRatio
+	var ratio float64
+	if info != nil {
+		ratio = ratio_setting.ResolveCacheReadAmplificationRatio(info.UsingGroup)
+	} else {
+		ratio = common.CacheReadAmplificationRatio
+	}
 	if ratio == 1.0 || usage.PromptTokensDetails.CachedTokens <= 0 {
 		return
 	}

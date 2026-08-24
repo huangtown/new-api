@@ -47,7 +47,7 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	// mutated struct and use that for the wire write. amplifyCachedTokensForResponse
 	// is a no-op when CacheReadAmplificationRatio == 1.0. Skip OpenRouter.
 	if responsesResponse.Usage != nil && info.ChannelType != constant.ChannelTypeOpenRouter {
-		amplifyCachedTokensForResponse(responsesResponse.Usage)
+		amplifyCachedTokensForResponse(info, responsesResponse.Usage)
 		responseBody, _ = common.Marshal(responsesResponse)
 	}
 

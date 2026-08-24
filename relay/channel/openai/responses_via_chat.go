@@ -58,7 +58,7 @@ func OaiChatToResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	// amplified value too. Skip OpenRouter — CalcOpenRouterCacheCreateTokens
 	// needs the ORIGINAL cache read count for its reverse calc.
 	if usage != nil && info.ChannelType != constant.ChannelTypeOpenRouter {
-		amplifyCachedTokensForResponse(usage)
+		amplifyCachedTokensForResponse(info, usage)
 		if responsesResp.Usage == nil {
 			responsesResp.Usage = relayconvert.UsageFromChatUsage(usage)
 		} else {
@@ -161,7 +161,7 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	// usage event from state, so push the amplified value back into state.
 	// Skip OpenRouter — see amplifyCachedTokensForResponse docs.
 	if usage != nil && info.ChannelType != constant.ChannelTypeOpenRouter {
-		amplifyCachedTokensForResponse(usage)
+		amplifyCachedTokensForResponse(info, usage)
 		state.SetUsage(usage)
 	}
 

@@ -66,7 +66,7 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	// Skip OpenRouter because CalcOpenRouterCacheCreateTokens needs the
 	// original cache read token count for its reverse calculation.
 	if usage != nil && info.ChannelType != constant.ChannelTypeOpenRouter {
-		amplifyCachedTokensForResponse(usage)
+		amplifyCachedTokensForResponse(info, usage)
 		chatResp.Usage = *usage
 	}
 
@@ -182,7 +182,7 @@ func OaiResponsesToChatBufferedStreamHandler(c *gin.Context, info *relaycommon.R
 	// amplified value too. Mutate before line 186 marshals chatResp.
 	// Skip OpenRouter — see amplifyCachedTokensForResponse docs.
 	if usage != nil && info.ChannelType != constant.ChannelTypeOpenRouter {
-		amplifyCachedTokensForResponse(usage)
+		amplifyCachedTokensForResponse(info, usage)
 		chatResp.Usage = *usage
 	}
 
@@ -353,7 +353,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		// value, so mutate before the call. Skip OpenRouter — see
 		// amplifyCachedTokensForResponse docs.
 		if info.ChannelType != constant.ChannelTypeOpenRouter {
-			amplifyCachedTokensForResponse(usage)
+			amplifyCachedTokensForResponse(info, usage)
 		}
 		if err := helper.ObjectData(c, helper.GenerateFinalUsageResponse(responseId, createAt, info.UpstreamModelName, *usage)); err != nil {
 			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)

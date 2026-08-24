@@ -1,5 +1,10 @@
 {
   "translation": {
+    "分组缓存读取放大倍率": "Per-group cache read amplification ratio",
+    "为不同分组设置缓存读取放大倍率，倍率会乘以实际缓存读取token数；未配置的分组使用通用设置中的默认值": "Set the cache read amplification ratio per group; the ratio multiplies the actual cache-read token count. Groups without an entry fall back to the global default.",
+    "缓存读取放大倍率": "Cache read amplification",
+    "为一个 JSON 文本，键为分组名称，值为放大倍率": "A JSON object mapping group names to amplification ratios.",
+    "分组缓存读取放大倍率设置，格式为 JSON 字符串，例如：{\"default\": 1, \"vip\": 1.5, \"svip\": 2}，表示 vip 分组的放大倍率为 1.5。未配置的分组使用通用设置中的默认值": "Per-group cache read amplification. Format: a JSON object such as {\"default\":1,\"vip\":1.5,\"svip\":2}. Groups without an entry use the global default.",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_many": " + Recherche Web {{count}} fois / 1K fois * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Recherche Web {{count}} fois / 1K fois * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + Recherche Web {{count}} fois / 1K fois * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",

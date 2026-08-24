@@ -47,6 +47,7 @@ import GroupTable from './components/GroupTable';
 import AutoGroupList from './components/AutoGroupList';
 import GroupGroupRatioRules from './components/GroupGroupRatioRules';
 import GroupSpecialUsableRules from './components/GroupSpecialUsableRules';
+import CacheReadRatioEditor from './components/CacheReadRatioEditor';
 
 const { Text, Title, Paragraph } = Typography;
 
@@ -57,6 +58,7 @@ const OPTION_KEYS = [
   'group_ratio_setting.group_special_usable_group',
   'AutoGroups',
   'DefaultUseAutoGroup',
+  'GroupCacheReadAmplificationRatio',
 ];
 
 function parseJSONSafe(str, fallback) {
@@ -81,6 +83,7 @@ export default function GroupRatioSettings(props) {
     'group_ratio_setting.group_special_usable_group': '',
     AutoGroups: '',
     DefaultUseAutoGroup: false,
+    GroupCacheReadAmplificationRatio: '',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -176,6 +179,13 @@ export default function GroupRatioSettings(props) {
     }));
   }, []);
 
+  const handleCacheReadRatioChange = useCallback((value) => {
+    setInputs((prev) => ({
+      ...prev,
+      GroupCacheReadAmplificationRatio: value,
+    }));
+  }, []);
+
   const dv = dataVersionRef.current;
 
   const renderVisualMode = () => (
@@ -248,6 +258,18 @@ export default function GroupRatioSettings(props) {
           value={inputs['group_ratio_setting.group_special_usable_group']}
           groupNames={groupNames}
           onChange={handleSpecialUsableChange}
+        />
+      </Form.Section>
+
+      <Form.Section text={t('分组缓存读取放大倍率')}>
+        <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 12 }}>
+          {t('为不同分组设置缓存读取放大倍率，倍率会乘以实际缓存读取token数；未配置的分组使用通用设置中的默认值')}
+        </Text>
+        <CacheReadRatioEditor
+          key={`crr_${dv}`}
+          value={inputs.GroupCacheReadAmplificationRatio}
+          groupNames={groupNames}
+          onChange={handleCacheReadRatioChange}
         />
       </Form.Section>
     </Form>
@@ -363,6 +385,33 @@ export default function GroupRatioSettings(props) {
                 setInputs((prev) => ({
                   ...prev,
                   'group_ratio_setting.group_special_usable_group': value,
+                }))
+              }
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('分组缓存读取放大倍率')}
+              placeholder={t('为一个 JSON 文本，键为分组名称，值为放大倍率')}
+              extraText={t(
+                '分组缓存读取放大倍率设置，格式为 JSON 字符串，例如：{"default": 1, "vip": 1.5, "svip": 2}，表示 vip 分组的放大倍率为 1.5。未配置的分组使用通用设置中的默认值',
+              )}
+              field={'GroupCacheReadAmplificationRatio'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: t('不是合法的 JSON 字符串'),
+                },
+              ]}
+              onChange={(value) =>
+                setInputs((prev) => ({
+                  ...prev,
+                  GroupCacheReadAmplificationRatio: value,
                 }))
               }
             />
