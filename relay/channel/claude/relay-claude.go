@@ -83,6 +83,33 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 	return relayconvert.FormatClaudeResponseInfo(claudeResponse, oaiResponse, claudeInfo)
 }
 
+// claudeErrorTypeToStatusCode converts Anthropic's semantic error type string
+// to the corresponding HTTP status code. The mapping follows Anthropic's
+// documented API error types. Any unrecognised type falls back to 500 (we
+// know something went wrong but can't be more specific).
+func claudeErrorTypeToStatusCode(errType string) int {
+	switch errType {
+	case "invalid_request_error":
+		return http.StatusBadRequest // 400
+	case "authentication_error":
+		return http.StatusUnauthorized // 401
+	case "permission_error":
+		return http.StatusForbidden // 403
+	case "not_found_error":
+		return http.StatusNotFound // 404
+	case "request_too_large":
+		return http.StatusRequestEntityTooLarge // 413
+	case "rate_limit_error":
+		return http.StatusTooManyRequests // 429
+	case "overloaded_error":
+		return 529 // Anthropic-specific; mirrors upstream behaviour
+	case "api_error":
+		return http.StatusInternalServerError // 500
+	default:
+		return http.StatusInternalServerError // 500 — unknown, preserve existing behaviour
+	}
+}
+
 func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, data string) *types.NewAPIError {
 	var claudeResponse dto.ClaudeResponse
 	err := common.UnmarshalJsonStr(data, &claudeResponse)
@@ -91,7 +118,7 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		return types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
-		return types.WithClaudeError(*claudeError, http.StatusInternalServerError)
+		return types.WithClaudeError(*claudeError, claudeErrorTypeToStatusCode(claudeError.Type))
 	}
 	if claudeResponse.StopReason != "" {
 		maybeMarkClaudeRefusal(c, claudeResponse.StopReason)
@@ -201,7 +228,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		return types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
-		return types.WithClaudeError(*claudeError, http.StatusInternalServerError)
+		return types.WithClaudeError(*claudeError, claudeErrorTypeToStatusCode(claudeError.Type))
 	}
 	maybeMarkClaudeRefusal(c, claudeResponse.StopReason)
 	if claudeInfo.Usage == nil {

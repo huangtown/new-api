@@ -134,7 +134,7 @@ func OaiResponsesToChatBufferedStreamHandler(c *gin.Context, info *relaycommon.R
 		case "response.failed", "response.error":
 			if streamResp.Response != nil {
 				if oaiErr := streamResp.Response.GetOpenAIError(); oaiErr != nil && oaiErr.Type != "" {
-					streamErr = types.WithOpenAIError(*oaiErr, http.StatusInternalServerError)
+					streamErr = types.WithOpenAIError(*oaiErr, openAIErrorTypeToStatusCode(oaiErr.Type))
 					break
 				}
 			}
@@ -301,7 +301,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		if streamResp.Type == "response.error" || streamResp.Type == "response.failed" {
 			if streamResp.Response != nil {
 				if oaiErr := streamResp.Response.GetOpenAIError(); oaiErr != nil && oaiErr.Type != "" {
-					streamErr = types.WithOpenAIError(*oaiErr, http.StatusInternalServerError)
+					streamErr = types.WithOpenAIError(*oaiErr, openAIErrorTypeToStatusCode(oaiErr.Type))
 					sr.Stop(streamErr)
 					return
 				}

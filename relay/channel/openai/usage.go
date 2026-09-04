@@ -1,12 +1,43 @@
 package openai
 
 import (
+	"net/http"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
+
+// openAIErrorTypeToStatusCode maps OpenAI-compatible error type strings to
+// their corresponding HTTP status codes. It is used to convert in-stream error
+// events (which carry the semantic type from the upstream body rather than the
+// HTTP status, because the stream was opened with 200 OK) into an appropriate
+// client-facing status code so that, e.g., a rate-limit event surfaces as 429
+// rather than 500.
+func openAIErrorTypeToStatusCode(errType string) int {
+	switch errType {
+	case "invalid_request_error":
+		return http.StatusBadRequest // 400
+	case "authentication_error":
+		return http.StatusUnauthorized // 401
+	case "permission_error", "permission_denied_error":
+		return http.StatusForbidden // 403
+	case "not_found_error":
+		return http.StatusNotFound // 404
+	case "request_too_large":
+		return http.StatusRequestEntityTooLarge // 413
+	case "rate_limit_error":
+		return http.StatusTooManyRequests // 429
+	case "overloaded_error":
+		return 529 // Anthropic-specific / equivalent to 503 in practice
+	case "api_error", "server_error":
+		return http.StatusInternalServerError // 500
+	default:
+		return http.StatusInternalServerError // 500 — unknown, preserve prior behaviour
+	}
+}
 
 func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, responseBody []byte) {
 	if info == nil || usage == nil {
