@@ -123,7 +123,18 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	// 检查是否为音频模型
 	isAudioModel := strings.Contains(strings.ToLower(model), "audio")
 
+	// streamErr is set when the upstream delivers an error chunk inside the
+	// SSE body (HTTP 200 already sent). Once set, the scanner is stopped and
+	// the caller returns it as a real error so the request is not billed and
+	// the pre-consumed quota is refunded. This mirrors ClaudeStreamHandler.
+	var streamErr *types.NewAPIError
+
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		if oaiErr := detectOpenAIStreamError(data); oaiErr != nil {
+			streamErr = types.WithOpenAIError(*oaiErr, openAIErrorTypeToStatusCode(oaiErr.Type))
+			sr.Stop(streamErr)
+			return
+		}
 		if lastStreamData != "" {
 			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
 				common.SysLog("error handling stream format: " + err.Error())
@@ -143,6 +154,10 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			}
 		}
 	})
+
+	if streamErr != nil {
+		return nil, streamErr
+	}
 
 	// 对音频模型，从倒数第二个stream data中提取usage信息
 	if isAudioModel && secondLastStreamData != "" {

@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -88,6 +89,35 @@ func handleGeminiFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 	c.Render(-1, common.CustomEvent{Data: "data: " + string(geminiResponseStr)})
 	_ = helper.FlushWriter(c)
 	return nil
+}
+
+// detectOpenAIStreamError inspects a single SSE data payload for an upstream
+// error delivered mid-stream. Upstreams that fail after the stream has been
+// opened with HTTP 200 signal the failure as a chunk whose top-level "error"
+// field is populated (OpenAI, and most OpenAI-compatible proxies). Without
+// this check the chunk decodes into an empty ChatCompletionsStreamResponse
+// and the request is treated as a successful, billable completion.
+//
+// Returns nil for non-JSON, [DONE], and any payload without a usable error.
+// A bare "message" key is deliberately NOT treated as an error — that shape
+// is ambiguous and would produce false positives on some providers.
+func detectOpenAIStreamError(data string) *types.OpenAIError {
+	if data == "" || !json.Valid(common.StringToByteSlice(data)) {
+		return nil
+	}
+	var probe dto.ChatCompletionsStreamResponse
+	if err := common.UnmarshalJsonStr(data, &probe); err != nil {
+		return nil
+	}
+	oaiErr := probe.GetOpenAIError()
+	if oaiErr == nil {
+		return nil
+	}
+	// A structurally-present but empty error object is not an error.
+	if oaiErr.Message == "" && oaiErr.Type == "" && oaiErr.Code == nil {
+		return nil
+	}
+	return oaiErr
 }
 
 func ProcessStreamResponse(streamResponse dto.ChatCompletionsStreamResponse, responseTextBuilder *strings.Builder, toolCount *int) error {

@@ -147,6 +147,16 @@ type ChatCompletionsStreamResponse struct {
 	SystemFingerprint *string                               `json:"system_fingerprint"`
 	Choices           []ChatCompletionsStreamResponseChoice `json:"choices"`
 	Usage             *Usage                                `json:"usage"`
+	// Error carries an upstream error delivered as an SSE data chunk after
+	// the stream was already opened with HTTP 200. Without this field the
+	// chunk deserializes cleanly into an empty response and is silently
+	// swallowed, so the request is billed as a success.
+	Error any `json:"error,omitempty"`
+}
+
+// GetOpenAIError 从动态错误类型中提取OpenAIError结构
+func (c *ChatCompletionsStreamResponse) GetOpenAIError() *types.OpenAIError {
+	return GetOpenAIError(c.Error)
 }
 
 func (c *ChatCompletionsStreamResponse) IsFinished() bool {
