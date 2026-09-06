@@ -1,6 +1,8 @@
 package claude
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -217,8 +219,48 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		return nil, err
 	}
 
+	if truncErr := CheckClaudeStreamTruncated(info, claudeInfo); truncErr != nil {
+		return nil, truncErr
+	}
+
 	HandleStreamFinalResponse(c, info, claudeInfo)
 	return claudeInfo.Usage, nil
+}
+
+// CheckClaudeStreamTruncated returns an error when the upstream stream ended
+// without ever delivering message_delta. Every well-formed Anthropic Messages
+// stream carries exactly one message_delta (with stop_reason and the final
+// output_tokens) before message_stop, so its absence is a definitive signal
+// that the upstream failed mid-stream — typically a backend crash that closes
+// the TCP connection without emitting an SSE error event.
+//
+// Without this guard the scanner reports the close as a normal EOF,
+// HandleStreamFinalResponse synthesises usage from whatever text arrived,
+// and the request is billed as a success even though the upstream recorded
+// it as a 5xx. Refusing the whole request here means the pre-consumed quota
+// is refunded instead.
+//
+// Only the "no message_delta at all" case is rejected. A stream whose
+// message_delta reports output_tokens=0 is legitimate (tool_use with no text)
+// and continues to flow through the existing fallback in
+// HandleStreamFinalResponse. Exported so the Bedrock adaptor, which drives the
+// same ClaudeResponseInfo from an AWS event stream, can apply the same rule.
+//
+// The error is marked skip-retry: by the time we detect truncation the SSE
+// headers and at least message_start have already been written to the
+// client, so retrying on another channel would append a second stream to a
+// response the client is already consuming. 502 also sits inside the default
+// retry range, which would otherwise make that happen.
+func CheckClaudeStreamTruncated(info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo) *types.NewAPIError {
+	if claudeInfo == nil || claudeInfo.Done {
+		return nil
+	}
+	endReason := ""
+	if info != nil && info.StreamStatus != nil {
+		endReason = string(info.StreamStatus.EndReason)
+	}
+	msg := fmt.Sprintf("upstream stream ended before message_delta (end_reason=%s)", endReason)
+	return types.NewOpenAIError(errors.New(msg), types.ErrorCodeBadResponse, http.StatusBadGateway, types.ErrOptionWithSkipRetry())
 }
 
 func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, httpResp *http.Response, data []byte) *types.NewAPIError {

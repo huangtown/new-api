@@ -285,6 +285,17 @@ func awsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (
 		}
 	}
 
+	// Events() closes on both normal completion and transport failure. The
+	// only way to tell them apart is stream.Err(); without this check a
+	// Bedrock-side abort mid-stream looks like a clean finish.
+	if streamErr := stream.Err(); streamErr != nil {
+		return types.NewOpenAIError(errors.Wrap(streamErr, "InvokeModelWithResponseStream"), types.ErrorCodeAwsInvokeError, getAwsErrorStatusCode(streamErr)), nil
+	}
+
+	if truncErr := claude.CheckClaudeStreamTruncated(info, claudeInfo); truncErr != nil {
+		return truncErr, nil
+	}
+
 	claude.HandleStreamFinalResponse(c, info, claudeInfo)
 	return nil, claudeInfo.Usage
 }
