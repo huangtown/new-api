@@ -94,6 +94,7 @@ const EditUserModal = (props) => {
     quota_amount: 0,
     group: 'default',
     remark: '',
+    visible_groups: '',
   });
 
   const fetchGroups = async () => {
@@ -117,6 +118,16 @@ const EditUserModal = (props) => {
       data.quota_amount = Number(
         quotaToDisplayAmount(data.quota || 0).toFixed(6),
       );
+      // Parse visible_groups from JSON string to array
+      if (data.visible_groups) {
+        try {
+          data.visible_groups = JSON.parse(data.visible_groups);
+        } catch (e) {
+          data.visible_groups = [];
+        }
+      } else {
+        data.visible_groups = [];
+      }
       setInputs({ ...getInitValues(), ...data });
     } else {
       showError(message);
@@ -150,6 +161,12 @@ const EditUserModal = (props) => {
     let payload = { ...values };
     delete payload.quota;
     delete payload.quota_amount;
+    // Convert visible_groups from array to JSON string
+    if (payload.visible_groups && Array.isArray(payload.visible_groups)) {
+      payload.visible_groups = JSON.stringify(payload.visible_groups);
+    } else if (!payload.visible_groups) {
+      payload.visible_groups = '';
+    }
     if (userId) {
       payload.id = parseInt(userId);
     }
@@ -366,6 +383,21 @@ const EditUserModal = (props) => {
                           search
                           rules={[{ required: true, message: t('请选择分组') }]}
                         />
+                      </Col>
+
+                      <Col span={24}>
+                        <Form.Select
+                          field='visible_groups'
+                          label={t('可见渠道分组')}
+                          placeholder={t('留空表示可见所有分组（仅对管理员生效）')}
+                          optionList={groupOptions}
+                          multiple
+                          allowAdditions
+                          search
+                        />
+                        <div className='text-xs text-gray-600 mt-1'>
+                          {t('限制管理员只能查看指定分组的渠道。Root 用户不受此限制。')}
+                        </div>
                       </Col>
 
                       <Col span={10}>
