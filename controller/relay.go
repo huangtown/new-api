@@ -111,6 +111,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 					gopool.Go(func() { service.NotifyError(subject, detail) })
 				}
 			}
+
+			// 报错掩盖：对非管理员用户掩盖包含计费关键词的报错
+			userId := c.GetInt("id")
+			isAdmin := model.IsAdmin(userId)
+			newAPIError.MaskBillingErrorForNonAdmin(isAdmin)
+
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError())
