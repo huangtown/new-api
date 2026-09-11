@@ -116,16 +116,49 @@ func GetAllChannels(c *gin.Context) {
 		}
 	}
 
+	// Get current user for permission checks
+	userId := c.GetInt("id")
+	userRole := c.GetInt("role")
+	user, err := model.GetUserById(userId, false)
+	if err != nil {
+		common.SysError("failed to get user: " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取用户信息失败"})
+		return
+	}
+
+	// Apply group visibility filter for non-root admins
+	visibleGroups := user.GetVisibleGroups()
+	var filteredGroupFilter string
+	if userRole < common.RoleRootUser && len(visibleGroups) > 0 {
+		// If user has group restrictions and no specific group filter is requested
+		if groupFilter == "" {
+			// User can only see their visible groups, but we need to handle pagination across all visible groups
+			// This is complex, so we'll filter in the query
+		} else {
+			// Check if the requested group is in the user's visible groups
+			if !user.CanViewGroup(groupFilter) {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "无权查看该分组的渠道",
+				})
+				return
+			}
+		}
+		filteredGroupFilter = groupFilter
+	} else {
+		filteredGroupFilter = groupFilter
+	}
+
 	var total int64
 
 	if enableTagMode {
-		tags, err := model.GetPaginatedChannelTags(buildChannelListQuery(groupFilter, statusFilter, typeFilter), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+		tags, err := model.GetPaginatedChannelTags(buildChannelListQuery(filteredGroupFilter, statusFilter, typeFilter), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 		if err != nil {
 			common.SysError("failed to get paginated tags: " + err.Error())
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取标签失败，请稍后重试"})
 			return
 		}
-		total, err = model.CountChannelTags(buildChannelListQuery(groupFilter, statusFilter, typeFilter))
+		total, err = model.CountChannelTags(buildChannelListQuery(filteredGroupFilter, statusFilter, typeFilter))
 		if err != nil {
 			common.SysError("failed to count tags: " + err.Error())
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取标签数量失败，请稍后重试"})
@@ -136,7 +169,7 @@ func GetAllChannels(c *gin.Context) {
 				continue
 			}
 			var tagChannels []*model.Channel
-			err := sortOptions.Apply(buildChannelListQuery(groupFilter, statusFilter, typeFilter).Where("tag = ?", *tag)).
+			err := sortOptions.Apply(buildChannelListQuery(filteredGroupFilter, statusFilter, typeFilter).Where("tag = ?", *tag)).
 				Omit("key").
 				Find(&tagChannels).Error
 			if err != nil {
@@ -147,13 +180,20 @@ func GetAllChannels(c *gin.Context) {
 			channelData = append(channelData, tagChannels...)
 		}
 	} else {
-		if err := buildChannelListQuery(groupFilter, statusFilter, typeFilter).Count(&total).Error; err != nil {
+		query := buildChannelListQuery(filteredGroupFilter, statusFilter, typeFilter)
+
+		// Apply group restriction filter for non-root users with visible groups
+		if userRole < common.RoleRootUser && len(visibleGroups) > 0 && filteredGroupFilter == "" {
+			query = query.Where("`group` IN ?", visibleGroups)
+		}
+
+		if err := query.Count(&total).Error; err != nil {
 			common.SysError("failed to count channels: " + err.Error())
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取渠道数量失败，请稍后重试"})
 			return
 		}
 
-		err := sortOptions.Apply(buildChannelListQuery(groupFilter, statusFilter, typeFilter)).
+		err := sortOptions.Apply(query).
 			Limit(pageInfo.GetPageSize()).
 			Offset(pageInfo.GetStartIdx()).
 			Omit("key").
@@ -165,11 +205,30 @@ func GetAllChannels(c *gin.Context) {
 		}
 	}
 
+	// Check URL viewing permission and filter channels by group access
+	canViewUrl := authz.Can(userId, userRole, authz.ChannelSecretView)
+	filteredData := make([]*model.Channel, 0, len(channelData))
 	for _, datum := range channelData {
+		// Double-check group access (in case of tag mode or other edge cases)
+		if userRole < common.RoleRootUser && len(visibleGroups) > 0 && !user.CanViewGroup(datum.Group) {
+			continue
+		}
+
 		clearChannelInfo(datum)
+
+		// Hide base_url if user doesn't have ChannelSecretView permission
+		if !canViewUrl {
+			datum.BaseURL = nil
+		}
+
+		filteredData = append(filteredData, datum)
 	}
 
-	countQuery := buildChannelListQuery(groupFilter, statusFilter, -1)
+	countQuery := buildChannelListQuery(filteredGroupFilter, statusFilter, -1)
+	if userRole < common.RoleRootUser && len(visibleGroups) > 0 && filteredGroupFilter == "" {
+		countQuery = countQuery.Where("`group` IN ?", visibleGroups)
+	}
+
 	var results []struct {
 		Type  int64
 		Count int64
@@ -184,7 +243,7 @@ func GetAllChannels(c *gin.Context) {
 		typeCounts[r.Type] = r.Count
 	}
 	common.ApiSuccess(c, gin.H{
-		"items":       channelData,
+		"items":       filteredData,
 		"total":       total,
 		"page":        pageInfo.GetPage(),
 		"page_size":   pageInfo.GetPageSize(),
@@ -275,6 +334,26 @@ func SearchChannels(c *gin.Context) {
 	sortOptions := model.NewChannelSortOptions(c.Query("sort_by"), c.Query("sort_order"), idSort)
 	enableTagMode, _ := strconv.ParseBool(c.Query("tag_mode"))
 	channelData := make([]*model.Channel, 0)
+
+	// Get current user for permission checks
+	userId := c.GetInt("id")
+	userRole := c.GetInt("role")
+	user, err := model.GetUserById(userId, false)
+	if err != nil {
+		common.SysError("failed to get user: " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取用户信息失败"})
+		return
+	}
+
+	// Check if user has permission to view the requested group
+	if userRole < common.RoleRootUser && group != "" && !user.CanViewGroup(group) {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无权查看该分组的渠道",
+		})
+		return
+	}
+
 	if enableTagMode {
 		tags, err := model.SearchTags(keyword, group, modelKeyword, idSort)
 		if err != nil {
@@ -326,6 +405,18 @@ func SearchChannels(c *gin.Context) {
 		channelData = filtered
 	}
 
+	// Apply group visibility filter for non-root admins
+	visibleGroups := user.GetVisibleGroups()
+	if userRole < common.RoleRootUser && len(visibleGroups) > 0 {
+		filtered := make([]*model.Channel, 0, len(channelData))
+		for _, ch := range channelData {
+			if user.CanViewGroup(ch.Group) {
+				filtered = append(filtered, ch)
+			}
+		}
+		channelData = filtered
+	}
+
 	// calculate type counts for search results
 	typeCounts := make(map[int64]int64)
 	for _, channel := range channelData {
@@ -371,8 +462,14 @@ func SearchChannels(c *gin.Context) {
 
 	pagedData := channelData[startIdx:endIdx]
 
+	// Check URL viewing permission and clear channel info
+	canViewUrl := authz.Can(userId, userRole, authz.ChannelSecretView)
 	for _, datum := range pagedData {
 		clearChannelInfo(datum)
+		// Hide base_url if user doesn't have ChannelSecretView permission
+		if !canViewUrl {
+			datum.BaseURL = nil
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -398,9 +495,40 @@ func GetChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if channel != nil {
-		clearChannelInfo(channel)
+	if channel == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "渠道不存在",
+		})
+		return
 	}
+
+	// Check group access permission
+	userId := c.GetInt("id")
+	userRole := c.GetInt("role")
+	if userRole < common.RoleRootUser {
+		user, err := model.GetUserById(userId, false)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if !user.CanViewGroup(channel.Group) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无权查看该分组的渠道",
+			})
+			return
+		}
+	}
+
+	clearChannelInfo(channel)
+
+	// Hide base_url if user doesn't have ChannelSecretView permission
+	canViewUrl := authz.Can(userId, userRole, authz.ChannelSecretView)
+	if !canViewUrl {
+		channel.BaseURL = nil
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

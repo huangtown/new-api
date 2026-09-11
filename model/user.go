@@ -2,6 +2,7 @@ package model
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -108,6 +109,7 @@ type User struct {
 	StripeCustomer   string                     `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
 	CreatedAt        int64                      `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt      int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
+	VisibleGroups    *string                    `json:"visible_groups,omitempty" gorm:"type:text;column:visible_groups"` // JSON array of channel groups this admin can view
 	AdminPermissions map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
 }
 
@@ -153,6 +155,40 @@ func (user *User) SetSetting(setting dto.UserSetting) {
 		return
 	}
 	user.Setting = string(settingBytes)
+}
+
+// GetVisibleGroups returns the list of channel groups this user can view.
+// Returns nil for root users (can see all) and empty slice if VisibleGroups is not set.
+func (user *User) GetVisibleGroups() []string {
+	if user.Role >= common.RoleRootUser {
+		return nil // nil means no restriction
+	}
+	if user.VisibleGroups == nil || *user.VisibleGroups == "" {
+		return []string{} // empty means see all (backward compatible)
+	}
+	var groups []string
+	if err := json.Unmarshal([]byte(*user.VisibleGroups), &groups); err != nil {
+		common.SysLog("failed to unmarshal visible_groups for user " + strconv.Itoa(user.Id) + ": " + err.Error())
+		return []string{}
+	}
+	return groups
+}
+
+// CanViewGroup checks if the user can view channels in the specified group.
+func (user *User) CanViewGroup(group string) bool {
+	if user.Role >= common.RoleRootUser {
+		return true
+	}
+	visibleGroups := user.GetVisibleGroups()
+	if len(visibleGroups) == 0 {
+		return true // no restriction set, backward compatible
+	}
+	for _, g := range visibleGroups {
+		if g == group {
+			return true
+		}
+	}
+	return false
 }
 
 func UpdateUserSetting(userId int, setting dto.UserSetting) error {
