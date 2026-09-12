@@ -27,6 +27,7 @@ import SettingsLog from '../../pages/Setting/Operation/SettingsLog';
 import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring';
 import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLimit';
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
+import SettingsBillingErrorMask from '../../pages/Setting/Operation/SettingsBillingErrorMask';
 import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {
@@ -83,6 +84,9 @@ const OperationSetting = () => {
 
     /* 令牌设置 */
     'token_setting.max_user_tokens': 1000,
+
+    /* 报错掩盖设置 */
+    BillingErrorMask: '',
   });
 
   let [loading, setLoading] = useState(false);
@@ -155,6 +159,10 @@ const OperationSetting = () => {
         {/* 签到设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsCheckin options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* 报错掩盖设置 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsBillingErrorMask options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>

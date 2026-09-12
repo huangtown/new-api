@@ -174,8 +174,7 @@ func (e *NewAPIError) MaskSensitiveErrorWithStatusCode() string {
 }
 
 // containsBillingKeywords 检查错误消息是否包含计费相关的敏感关键词
-func containsBillingKeywords(message string) bool {
-	keywords := []string{"RMB", "额度", "余额", "充值"}
+func containsBillingKeywords(message string, keywords []string) bool {
 	lowerMsg := strings.ToLower(message)
 	for _, keyword := range keywords {
 		if strings.Contains(message, keyword) || strings.Contains(lowerMsg, strings.ToLower(keyword)) {
@@ -186,17 +185,21 @@ func containsBillingKeywords(message string) bool {
 }
 
 // MaskBillingErrorForNonAdmin 针对非管理员用户掩盖包含计费信息的报错
-// 如果错误消息包含敏感关键词且用户不是管理员，则返回 524 错误
-func (e *NewAPIError) MaskBillingErrorForNonAdmin(isAdmin bool) {
+// 如果错误消息包含敏感关键词且用户不是管理员，则返回配置的状态码错误
+func (e *NewAPIError) MaskBillingErrorForNonAdmin(isAdmin bool, enabled bool, keywords []string, statusCode int, maskMessage string) {
 	if e == nil || isAdmin {
 		return
 	}
 
+	if !enabled {
+		return
+	}
+
 	errorMessage := e.Error()
-	if containsBillingKeywords(errorMessage) {
-		// 掩盖为 524 错误
-		e.StatusCode = 524
-		e.Err = errors.New("bad response status code 524")
+	if containsBillingKeywords(errorMessage, keywords) {
+		// 掩盖为配置的状态码错误
+		e.StatusCode = statusCode
+		e.Err = errors.New(maskMessage)
 		e.errorCode = ErrorCodeBadResponseStatusCode
 		// 清除原始的 RelayError，避免泄露
 		e.RelayError = nil

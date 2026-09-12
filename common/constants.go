@@ -136,6 +136,10 @@ var FallbackTriggerKeywords = "too long,context length,maximum context,prompt to
 var GroupFallbackChannelIDs = ""   // JSON map: {"default":"10,11","vip":"20,21"}
 var GroupFallbackBillingRates = "" // JSON map: {"default":[{"channel":"10","rate":1.5}]}
 
+var BillingErrorMaskingEnabled = true
+var BillingErrorMaskingKeywords = "RMB,额度,余额,充值"
+var BillingErrorMaskingStatusCode = "524"
+
 var SMTPServer = ""
 var SMTPPort = 587
 var SMTPSSLEnabled = false

@@ -3835,6 +3835,15 @@
     "默认折叠侧边栏": "Default collapse sidebar",
     "默认测试模型": "Default Test Model",
     "默认用户消息": "Default User Message",
-    "默认补全倍率": "Default completion ratio"
+    "默认补全倍率": "Default completion ratio",
+    "报错掩盖设置": "Error Masking Settings",
+    "启用报错掩盖功能": "Enable Error Masking",
+    "敏感关键词列表": "Sensitive Keywords List",
+    "输入关键词后回车添加": "Type a keyword and press Enter to add",
+    "报错消息中包含这些关键词时将触发掩盖规则": "Error messages containing these keywords will trigger the masking rule",
+    "掩盖后状态码": "Masked Status Code",
+    "掩盖后提示消息": "Masked Message",
+    "自定义错误提示消息，留空则使用默认提示": "Custom error message; leave empty to use the default",
+    "保存报错掩盖设置": "Save Error Masking Settings"
   }
 }

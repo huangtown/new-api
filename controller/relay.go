@@ -115,7 +115,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			// 报错掩盖：对非管理员用户掩盖包含计费关键词的报错
 			userId := c.GetInt("id")
 			isAdmin := model.IsAdmin(userId)
-			newAPIError.MaskBillingErrorForNonAdmin(isAdmin)
+			keywords := strings.Split(common.BillingErrorMaskingKeywords, ",")
+			statusCode, _ := strconv.Atoi(common.BillingErrorMaskingStatusCode)
+			maskMessage := "bad response status code " + common.BillingErrorMaskingStatusCode
+			newAPIError.MaskBillingErrorForNonAdmin(isAdmin, common.BillingErrorMaskingEnabled, keywords, statusCode, maskMessage)
 
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
