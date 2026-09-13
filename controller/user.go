@@ -1046,7 +1046,7 @@ func updateAdminPermissionsForUserInTx(c *gin.Context, tx *gorm.DB, userID int, 
 		return false, nil
 	}
 	if c.GetInt("role") != common.RoleRootUser {
-		return false, fmt.Errorf("only root can update admin permissions")
+		return false, nil
 	}
 	if userRole < common.RoleAdminUser {
 		return true, authz.ClearUserAuthorizationInTx(tx, userID)
