@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service/authz"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,6 +30,12 @@ func parseFlowQuotaTimeRange(c *gin.Context) (int64, int64, bool) {
 }
 
 func GetAllQuotaDates(c *gin.Context) {
+	userID := c.GetInt("id")
+	userRole := c.GetInt("role")
+	if !authz.Can(userID, userRole, authz.LogReadAll) {
+		GetUserQuotaDates(c)
+		return
+	}
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	username := c.Query("username")
@@ -46,6 +53,12 @@ func GetAllQuotaDates(c *gin.Context) {
 }
 
 func GetQuotaDatesByUser(c *gin.Context) {
+	userID := c.GetInt("id")
+	userRole := c.GetInt("role")
+	if !authz.Can(userID, userRole, authz.LogReadAll) {
+		GetUserQuotaDates(c)
+		return
+	}
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	dates, err := model.GetQuotaDataGroupByUser(startTimestamp, endTimestamp)
@@ -86,6 +99,12 @@ func GetUserQuotaDates(c *gin.Context) {
 }
 
 func GetAllFlowQuotaDates(c *gin.Context) {
+	userID := c.GetInt("id")
+	userRole := c.GetInt("role")
+	if !authz.Can(userID, userRole, authz.LogReadAll) {
+		GetUserFlowQuotaDates(c)
+		return
+	}
 	startTimestamp, endTimestamp, ok := parseFlowQuotaTimeRange(c)
 	if !ok {
 		return
