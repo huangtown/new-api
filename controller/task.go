@@ -8,12 +8,19 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
+	"github.com/QuantumNous/new-api/service/authz"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
 
 func GetAllTask(c *gin.Context) {
+	userID := c.GetInt("id")
+	userRole := c.GetInt("role")
+	if !authz.Can(userID, userRole, authz.LogReadAll) {
+		GetUserTask(c)
+		return
+	}
 	pageInfo := common.GetPageQuery(c)
 
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
