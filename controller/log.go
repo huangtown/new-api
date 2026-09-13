@@ -5,12 +5,28 @@ import (
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service/authz"
 
 	"github.com/gin-gonic/gin"
 )
 
+func canViewAllLogs(c *gin.Context) bool {
+	userID := c.GetInt("id")
+	userRole := c.GetInt("role")
+	if !authz.Can(userID, userRole, authz.LogReadAll) {
+		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
+		return false
+	}
+	return true
+}
+
 func GetAllLogs(c *gin.Context) {
+	if !canViewAllLogs(c) {
+		return
+	}
+
 	pageInfo := common.GetPageQuery(c)
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
