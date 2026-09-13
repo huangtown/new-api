@@ -37,7 +37,6 @@ import {
   SideSheet,
   Space,
   Spin,
-  Switch,
   Typography,
   Card,
   Tag,
@@ -111,33 +110,38 @@ const EditUserModal = (props) => {
 
   const handleCancel = () => props.handleClose();
 
+  const normalizeUserData = (data) => {
+    data.password = '';
+    data.quota_amount = Number(
+      quotaToDisplayAmount(data.quota || 0).toFixed(6),
+    );
+    if (data.visible_groups) {
+      try {
+        data.visible_groups = JSON.parse(data.visible_groups);
+      } catch (e) {
+        data.visible_groups = [];
+      }
+    } else {
+      data.visible_groups = [];
+    }
+    if (data.admin_permissions) {
+      const perms = data.admin_permissions;
+      data.log_read_all = perms.log && perms.log.read_all === true;
+      data.user_read = perms.user && perms.user.read === true;
+    } else {
+      data.log_read_all = true;
+      data.user_read = true;
+    }
+    return data;
+  };
+
   const loadUser = async () => {
     setLoading(true);
     const url = userId ? `/api/user/${userId}` : `/api/user/self`;
     const res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
-      data.password = '';
-      data.quota_amount = Number(
-        quotaToDisplayAmount(data.quota || 0).toFixed(6),
-      );
-      // Parse visible_groups from JSON string to array
-      if (data.visible_groups) {
-        try {
-          data.visible_groups = JSON.parse(data.visible_groups);
-        } catch (e) {
-          data.visible_groups = [];
-        }
-      } else {
-        data.visible_groups = [];
-      }
-      // Read admin permissions (overrides inherited role defaults)
-      if (data.admin_permissions) {
-        const perms = data.admin_permissions;
-        data.log_read_all = perms.log && perms.log.read_all === true;
-        data.user_read = perms.user && perms.user.read === true;
-      }
-      setInputs({ ...getInitValues(), ...data });
+      setInputs({ ...getInitValues(), ...normalizeUserData(data) });
     } else {
       showError(message);
     }
@@ -221,11 +225,7 @@ const EditUserModal = (props) => {
         const userRes = await API.get(`/api/user/${userId}`);
         if (userRes.data.success) {
           const data = userRes.data.data;
-          data.password = '';
-          data.quota_amount = Number(
-            quotaToDisplayAmount(data.quota || 0).toFixed(6),
-          );
-          setInputs({ ...getInitValues(), ...data });
+          setInputs({ ...getInitValues(), ...normalizeUserData(data) });
         }
         props.refresh();
       } else {
@@ -446,7 +446,6 @@ const EditUserModal = (props) => {
                           field='log_read_all'
                           label={t('可查看全员日志')}
                           extraText={t('关闭后此管理员不能查看全员日志，只能看自己的日志。开启 = 继承角色默认权限。')}
-                          onChange={(v) => setInputs({ ...inputs, log_read_all: v })}
                         />
                       </Col>
                       <Col span={24}>
@@ -454,7 +453,6 @@ const EditUserModal = (props) => {
                           field='user_read'
                           label={t('可查看用户列表')}
                           extraText={t('关闭后此管理员不能查看用户列表。开启 = 继承角色默认权限。')}
-                          onChange={(v) => setInputs({ ...inputs, user_read: v })}
                         />
                       </Col>
 
