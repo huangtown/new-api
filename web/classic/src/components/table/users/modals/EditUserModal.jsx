@@ -37,6 +37,7 @@ import {
   SideSheet,
   Space,
   Spin,
+  Switch,
   Typography,
   Card,
   Tag,
@@ -95,6 +96,8 @@ const EditUserModal = (props) => {
     group: 'default',
     remark: '',
     visible_groups: '',
+    log_read_all: true,
+    user_read: true,
   });
 
   const fetchGroups = async () => {
@@ -127,6 +130,12 @@ const EditUserModal = (props) => {
         }
       } else {
         data.visible_groups = [];
+      }
+      // Read admin permissions (overrides inherited role defaults)
+      if (data.admin_permissions) {
+        const perms = data.admin_permissions;
+        data.log_read_all = perms.log && perms.log.read_all === true;
+        data.user_read = perms.user && perms.user.read === true;
       }
       setInputs({ ...getInitValues(), ...data });
     } else {
@@ -167,6 +176,13 @@ const EditUserModal = (props) => {
     } else if (!payload.visible_groups) {
       payload.visible_groups = '';
     }
+    // Build admin_permissions overrides for log:read_all and user:read toggles
+    const logReadAll = values.log_read_all === true;
+    const userRead = values.user_read === true;
+    payload.admin_permissions = {
+      log: { read_all: logReadAll },
+      user: { read: userRead },
+    };
     if (userId) {
       payload.id = parseInt(userId);
     }
@@ -398,6 +414,48 @@ const EditUserModal = (props) => {
                         <div className='text-xs text-gray-600 mt-1'>
                           {t('限制管理员只能查看指定分组的渠道。Root 用户不受此限制。')}
                         </div>
+                      </Col>
+                    </Row>
+                  </Card>
+                )}
+
+                {/* 权限管理 - 仅 root 可编辑其他管理员的权限 */}
+                {userId && (
+                  <Card className='!rounded-2xl shadow-sm border-0'>
+                    <div className='flex items-center mb-2'>
+                      <Avatar
+                        size='small'
+                        color='orange'
+                        className='mr-2 shadow-md'
+                      >
+                        <IconLink size={16} />
+                      </Avatar>
+                      <div>
+                        <Text className='text-lg font-medium'>
+                          {t('权限管理')}
+                        </Text>
+                        <div className='text-xs text-gray-600'>
+                          {t('细粒度权限控制，仅 root 用户可修改。默认继承 admin 角色权限。')}
+                        </div>
+                      </div>
+                    </div>
+
+                    <Row gutter={12}>
+                      <Col span={24}>
+                        <Form.Switch
+                          field='log_read_all'
+                          label={t('可查看全员日志')}
+                          extraText={t('关闭后此管理员不能查看全员日志，只能看自己的日志。开启 = 继承角色默认权限。')}
+                          onChange={(v) => setInputs({ ...inputs, log_read_all: v })}
+                        />
+                      </Col>
+                      <Col span={24}>
+                        <Form.Switch
+                          field='user_read'
+                          label={t('可查看用户列表')}
+                          extraText={t('关闭后此管理员不能查看用户列表。开启 = 继承角色默认权限。')}
+                          onChange={(v) => setInputs({ ...inputs, user_read: v })}
+                        />
                       </Col>
 
                       <Col span={10}>
