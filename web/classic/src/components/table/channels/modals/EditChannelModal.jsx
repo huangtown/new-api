@@ -56,6 +56,7 @@ import {
   getChannelIcon,
   getModelCategories,
   selectFilter,
+  isRoot,
 } from '../../../../helpers';
 import ModelSelectModal from './ModelSelectModal';
 import SingleModelSelectModal from './SingleModelSelectModal';
@@ -2662,6 +2663,17 @@ const EditChannelModal = (props) => {
                       onChange={(value) => handleInputChange('name', value)}
                       autoComplete='new-password'
                     />
+
+                    {isRoot() && (
+                      <Form.Input
+                        field='alias'
+                        label={t('别名')}
+                        placeholder={t('设置后，超级管理员将看到别名而非原渠道名')}
+                        showClear
+                        onChange={(value) => handleInputChange('alias', value)}
+                        autoComplete='off'
+                      />
+                    )}
 
                     {inputs.type === 33 && (
                       <>

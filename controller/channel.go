@@ -71,6 +71,18 @@ func clearChannelInfo(channel *model.Channel) {
 	}
 }
 
+// applyChannelAliasForRole overlays alias onto Name for root users,
+// and strips the Alias field for non-root users so they never see it.
+func applyChannelAliasForRole(channel *model.Channel, userRole int) {
+	if userRole >= common.RoleRootUser {
+		if channel.Alias != nil && *channel.Alias != "" {
+			channel.Name = *channel.Alias
+		}
+	} else {
+		channel.Alias = nil
+	}
+}
+
 func applyChannelStatusFilter(query *gorm.DB, statusFilter int) *gorm.DB {
 	if statusFilter == common.ChannelStatusEnabled {
 		return query.Where("status = ?", common.ChannelStatusEnabled)
@@ -215,6 +227,7 @@ func GetAllChannels(c *gin.Context) {
 		}
 
 		clearChannelInfo(datum)
+		applyChannelAliasForRole(datum, userRole)
 
 		// Hide base_url if user doesn't have ChannelSecretView permission
 		if !canViewUrl {
@@ -466,6 +479,7 @@ func SearchChannels(c *gin.Context) {
 	canViewUrl := authz.Can(userId, userRole, authz.ChannelSecretView)
 	for _, datum := range pagedData {
 		clearChannelInfo(datum)
+		applyChannelAliasForRole(datum, userRole)
 		// Hide base_url if user doesn't have ChannelSecretView permission
 		if !canViewUrl {
 			datum.BaseURL = nil
@@ -522,6 +536,7 @@ func GetChannel(c *gin.Context) {
 	}
 
 	clearChannelInfo(channel)
+	applyChannelAliasForRole(channel, userRole)
 
 	// Hide base_url if user doesn't have ChannelSecretView permission
 	canViewUrl := authz.Can(userId, userRole, authz.ChannelSecretView)
@@ -740,6 +755,12 @@ func AddChannel(c *gin.Context) {
 	}
 
 	addChannelRequest.Channel.CreatedTime = common.GetTimestamp()
+
+	// Non-root admins cannot set the alias field
+	if c.GetInt("role") < common.RoleRootUser {
+		addChannelRequest.Channel.Alias = nil
+	}
+
 	keys := make([]string, 0)
 	switch addChannelRequest.Mode {
 	case "multi_to_single":
@@ -1061,6 +1082,11 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 	clearChannelReadOnlyFields(&channel, requestData)
+
+	// Non-root admins cannot set the alias field
+	if c.GetInt("role") < common.RoleRootUser {
+		channel.Alias = nil
+	}
 
 	// 使用统一的校验函数
 	if err := validateChannel(&channel.Channel, false); err != nil {
