@@ -536,7 +536,6 @@ func GetChannel(c *gin.Context) {
 	}
 
 	clearChannelInfo(channel)
-	applyChannelAliasForRole(channel, userRole)
 
 	// Hide base_url if user doesn't have ChannelSecretView permission
 	canViewUrl := authz.Can(userId, userRole, authz.ChannelSecretView)
