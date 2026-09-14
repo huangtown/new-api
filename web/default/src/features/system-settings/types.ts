@@ -336,7 +336,9 @@ export type OperationsSettings = {
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
   QuotaRemindThreshold: string
-  BillingErrorMask: string
+  BillingErrorMaskingEnabled: boolean
+  BillingErrorMaskingKeywords: string
+  BillingErrorMaskingStatusCode: string
   SMTPServer: string
   SMTPPort: string
   SMTPAccount: string

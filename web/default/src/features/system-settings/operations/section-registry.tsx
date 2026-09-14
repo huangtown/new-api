@@ -164,7 +164,11 @@ const OPERATIONS_SECTIONS = [
     titleKey: 'Billing Error Mask',
     build: (settings: OperationsSettings) => (
       <BillingErrorMaskSection
-        defaultValues={parseBillingErrorMaskConfig(settings.BillingErrorMask)}
+        defaultValues={parseBillingErrorMaskConfig({
+          enabled: settings.BillingErrorMaskingEnabled,
+          keywords: settings.BillingErrorMaskingKeywords,
+          statusCode: settings.BillingErrorMaskingStatusCode,
+        })}
       />
     ),
   },

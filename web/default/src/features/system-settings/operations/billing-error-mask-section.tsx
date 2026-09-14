@@ -51,7 +51,6 @@ const billingErrorMaskSchema = z.object({
   enabled: z.boolean(),
   keywords: z.array(z.string()),
   status_code: z.number().int().min(100).max(599),
-  message: z.string(),
 })
 
 type BillingErrorMaskValues = z.infer<typeof billingErrorMaskSchema>
@@ -61,24 +60,23 @@ export type BillingErrorMaskConfig = BillingErrorMaskValues
 export const DEFAULT_BILLING_ERROR_MASK_CONFIG: BillingErrorMaskConfig = {
   enabled: false,
   keywords: [],
-  status_code: 200,
-  message: '',
+  status_code: 524,
 }
 
-export function parseBillingErrorMaskConfig(raw: string): BillingErrorMaskConfig {
-  if (!raw) return DEFAULT_BILLING_ERROR_MASK_CONFIG
-  try {
-    const parsed = JSON.parse(raw)
-    return {
-      enabled: Boolean(parsed.enabled),
-      keywords: Array.isArray(parsed.keywords) ? parsed.keywords.filter((k: unknown) => typeof k === 'string') : [],
-      status_code: (
-        (n) => Number.isFinite(n) && n >= 100 && n <= 599 ? n : 200
-      )(Number(parsed.status_code)),
-      message: String(parsed.message || ''),
-    }
-  } catch {
-    return DEFAULT_BILLING_ERROR_MASK_CONFIG
+export function parseBillingErrorMaskConfig(raw: {
+  enabled: boolean
+  keywords: string
+  statusCode: string
+}): BillingErrorMaskConfig {
+  const n = Number(raw.statusCode)
+  return {
+    enabled: Boolean(raw.enabled),
+    keywords: raw.keywords
+      ? raw.keywords.split(',').map((k) => k.trim()).filter(Boolean)
+      : [],
+    status_code:
+      Number.isFinite(n) && n >= 100 && n <= 599 ? n : 200,
+    message: '',
   }
 }
 
@@ -152,8 +150,16 @@ export function BillingErrorMaskSection({ defaultValues }: BillingErrorMaskSecti
 
   const onSubmit = async (data: BillingErrorMaskValues) => {
     await updateOption.mutateAsync({
-      key: 'BillingErrorMask',
-      value: JSON.stringify(data),
+      key: 'BillingErrorMaskingEnabled',
+      value: data.enabled,
+    })
+    await updateOption.mutateAsync({
+      key: 'BillingErrorMaskingKeywords',
+      value: data.keywords.join(','),
+    })
+    await updateOption.mutateAsync({
+      key: 'BillingErrorMaskingStatusCode',
+      value: String(data.status_code),
     })
   }
 
@@ -227,28 +233,6 @@ export function BillingErrorMaskSection({ defaultValues }: BillingErrorMaskSecti
                     className='w-32'
                     {...field}
                     onChange={(e) => field.onChange(Number(e.target.value))}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name='message'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('Masked Error Message')}</FormLabel>
-                <FormDescription>
-                  {t('Custom error message shown when the mask fires. Leave empty to use the default.')}
-                </FormDescription>
-                <FormControl>
-                  <Textarea
-                    className='font-mono'
-                    rows={3}
-                    placeholder={t('Leave empty to use the default message')}
-                    {...field}
                   />
                 </FormControl>
                 <FormMessage />
