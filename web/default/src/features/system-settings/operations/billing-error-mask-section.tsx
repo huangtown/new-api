@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useController, useForm } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
 
@@ -72,7 +72,9 @@ export function parseBillingErrorMaskConfig(raw: string): BillingErrorMaskConfig
     return {
       enabled: Boolean(parsed.enabled),
       keywords: Array.isArray(parsed.keywords) ? parsed.keywords.filter((k: unknown) => typeof k === 'string') : [],
-      status_code: Number(parsed.status_code) || 200,
+      status_code: (
+        (n) => Number.isFinite(n) && n >= 100 && n <= 599 ? n : 200
+      )(Number(parsed.status_code)),
       message: String(parsed.message || ''),
     }
   } catch {
@@ -148,8 +150,6 @@ export function BillingErrorMaskSection({ defaultValues }: BillingErrorMaskSecti
 
   useResetForm(form, defaultValues)
 
-  const { field: keywordsField } = useController({ control: form.control, name: 'keywords' })
-
   const onSubmit = async (data: BillingErrorMaskValues) => {
     await updateOption.mutateAsync({
       key: 'BillingErrorMask',
@@ -189,20 +189,26 @@ export function BillingErrorMaskSection({ defaultValues }: BillingErrorMaskSecti
             </SettingsSwitchContent>
           </SettingsSwitchItem>
 
-          <FormItem>
-            <FormLabel>{t('Sensitive Keywords')}</FormLabel>
-            <FormDescription>
-              {t('Errors containing any of these keywords will trigger the mask rule.')}
-            </FormDescription>
-            <FormControl>
-              <KeywordsInput
-                value={keywordsField.value}
-                onChange={keywordsField.onChange}
-                disabled={updateOption.isPending}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
+          <FormField
+            control={form.control}
+            name='keywords'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Sensitive Keywords')}</FormLabel>
+                <FormDescription>
+                  {t('Errors containing any of these keywords will trigger the mask rule.')}
+                </FormDescription>
+                <FormControl>
+                  <KeywordsInput
+                    value={field.value}
+                    onChange={field.onChange}
+                    disabled={updateOption.isPending}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <FormField
             control={form.control}
