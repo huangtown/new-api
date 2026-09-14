@@ -175,6 +175,7 @@ const EditChannelModal = (props) => {
     key: '',
     openai_organization: '',
     max_input_tokens: 0,
+    alias: '',
     base_url: '',
     other: '',
     model_mapping: '',

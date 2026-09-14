@@ -1231,6 +1231,7 @@ func UpdateChannel(c *gin.Context) {
 	})
 	channel.Key = ""
 	clearChannelInfo(&channel.Channel)
+	applyChannelAliasForRole(&channel.Channel, c.GetInt("role"))
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
