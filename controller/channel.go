@@ -537,6 +537,11 @@ func GetChannel(c *gin.Context) {
 
 	clearChannelInfo(channel)
 
+	// Strip alias for non-root users — alias is root-only
+	if userRole < common.RoleRootUser {
+		channel.Alias = nil
+	}
+
 	// Hide base_url if user doesn't have ChannelSecretView permission
 	canViewUrl := authz.Can(userId, userRole, authz.ChannelSecretView)
 	if !canViewUrl {
