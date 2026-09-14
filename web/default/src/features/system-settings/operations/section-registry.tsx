@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { BillingErrorMaskSection, parseBillingErrorMaskConfig } from './billing-error-mask-section'
 import { SystemBehaviorSection } from '../general/system-behavior-section'
 import { EmailSettingsSection } from '../integrations/email-settings-section'
 import { FallbackSettingsSection } from './fallback-settings-section'
@@ -155,6 +156,15 @@ const OPERATIONS_SECTIONS = [
       <UpdateCheckerSection
         currentVersion={currentVersion}
         startTime={startTime}
+      />
+    ),
+  },
+  {
+    id: 'billing-error-mask',
+    titleKey: 'Billing Error Mask',
+    build: (settings: OperationsSettings) => (
+      <BillingErrorMaskSection
+        defaultValues={parseBillingErrorMaskConfig(settings.BillingErrorMask)}
       />
     ),
   },

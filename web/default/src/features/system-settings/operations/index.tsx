@@ -31,6 +31,7 @@ const defaultOperationsSettings: OperationsSettings = {
   DemoSiteEnabled: false,
   SelfUseModeEnabled: false,
   QuotaRemindThreshold: '',
+  BillingErrorMask: '',
   SMTPServer: '',
   SMTPPort: '',
   SMTPAccount: '',
