@@ -2011,6 +2011,27 @@ export function ChannelMutateDrawer({
                               </FormItem>
                             )}
                           />
+
+                          {currentUser?.role === ROLE.SUPER_ADMIN && (
+                            <FormField
+                              control={form.control}
+                              name='alias'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Alias')}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      placeholder={t(
+                                        'Set alias — super admins will see this instead of the real name'
+                                      )}
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          )}
                         </div>
 
                         {!isEditing && (

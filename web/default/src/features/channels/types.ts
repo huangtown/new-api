@@ -64,6 +64,7 @@ export const channelSchema = z.object({
   header_override: z.string().nullish(),
   remark: z.string().default(''),
   max_input_tokens: z.number().default(0),
+  alias: z.string().nullish(), // root-only display alias
   channel_info: channelInfoSchema.default({
     is_multi_key: false,
     multi_key_size: 0,
