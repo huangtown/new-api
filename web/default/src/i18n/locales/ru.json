@@ -2035,7 +2035,7 @@
     "footer.columns.related.links.oneApi": "Один API",
     "footer.columns.related.title": "Связанные проекты",
     "footer.defaultCopyright": "Все права защищены.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
+    "footer.newapi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Для каналов, добавленных после 10 мая 2025 г., не нужно удалять \".\" из имён моделей при развёртывании",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Для частных развертываний, формат: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Принудительно возвращать синтаксически корректный JSON",
@@ -5199,6 +5199,16 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Billing Error Mask": "Billing Error Mask",
+    "Enable Billing Error Mask": "Enable Billing Error Mask",
+    "When enabled, error messages containing matched keywords are hidden from non-admin users.": "When enabled, error messages containing matched keywords are hidden from non-admin users.",
+    "Sensitive Keywords": "Sensitive Keywords",
+    "Errors containing any of these keywords will trigger the mask rule.": "Errors containing any of these keywords will trigger the mask rule.",
+    "Type a keyword and press Enter": "Type a keyword and press Enter",
+    "Remove keyword {{kw}}": "Remove keyword {{kw}}",
+    "Masked Status Code": "Masked Status Code",
+    "HTTP status code returned to the caller when the mask fires (100–599).": "HTTP status code returned to the caller when the mask fires (100–599).",
+    "Save billing error mask settings": "Save billing error mask settings"
   }
 }

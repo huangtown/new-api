@@ -116,8 +116,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			userId := c.GetInt("id")
 			isAdmin := model.IsAdmin(userId)
 			keywords := strings.Split(common.BillingErrorMaskingKeywords, ",")
-			statusCode, _ := strconv.Atoi(common.BillingErrorMaskingStatusCode)
-			maskMessage := "bad response status code " + common.BillingErrorMaskingStatusCode
+			// 配置非法时回退到默认值，避免写出 0 这种非法状态码
+			statusCode, err := strconv.Atoi(common.BillingErrorMaskingStatusCode)
+			if err != nil || statusCode < 100 || statusCode > 599 {
+				statusCode = http.StatusServiceUnavailable
+			}
+			maskMessage := "bad response status code " + strconv.Itoa(statusCode)
 			newAPIError.MaskBillingErrorForNonAdmin(isAdmin, common.BillingErrorMaskingEnabled, keywords, statusCode, maskMessage)
 
 			switch relayFormat {

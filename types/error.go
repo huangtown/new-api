@@ -174,9 +174,15 @@ func (e *NewAPIError) MaskSensitiveErrorWithStatusCode() string {
 }
 
 // containsBillingKeywords 检查错误消息是否包含计费相关的敏感关键词
+// 空关键词会被跳过：strings.Contains(s, "") 恒为 true，
+// 若不跳过，未配置关键词时会掩盖掉所有报错。
 func containsBillingKeywords(message string, keywords []string) bool {
 	lowerMsg := strings.ToLower(message)
 	for _, keyword := range keywords {
+		keyword = strings.TrimSpace(keyword)
+		if keyword == "" {
+			continue
+		}
 		if strings.Contains(message, keyword) || strings.Contains(lowerMsg, strings.ToLower(keyword)) {
 			return true
 		}

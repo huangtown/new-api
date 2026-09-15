@@ -2035,7 +2035,7 @@
     "footer.columns.related.links.oneApi": "1つのAPI",
     "footer.columns.related.title": "関連プロジェクト",
     "footer.defaultCopyright": "すべての権利を留保します。",
-    "footer.new\u0061pi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
+    "footer.newapi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "2025 年 5 月 10 日以降に追加されたチャネルの場合、デプロイ時にモデル名から「.」を削除する必要はありません",
     "For private deployments, format: https://fastgpt.run/api/openapi": "プライベートデプロイメントの場合、形式: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "構文的に有効な JSON 応答を強制",
@@ -5199,6 +5199,16 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Billing Error Mask": "Billing Error Mask",
+    "Enable Billing Error Mask": "Enable Billing Error Mask",
+    "When enabled, error messages containing matched keywords are hidden from non-admin users.": "When enabled, error messages containing matched keywords are hidden from non-admin users.",
+    "Sensitive Keywords": "Sensitive Keywords",
+    "Errors containing any of these keywords will trigger the mask rule.": "Errors containing any of these keywords will trigger the mask rule.",
+    "Type a keyword and press Enter": "Type a keyword and press Enter",
+    "Remove keyword {{kw}}": "Remove keyword {{kw}}",
+    "Masked Status Code": "Masked Status Code",
+    "HTTP status code returned to the caller when the mask fires (100–599).": "HTTP status code returned to the caller when the mask fires (100–599).",
+    "Save billing error mask settings": "Save billing error mask settings"
   }
 }

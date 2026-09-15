@@ -32,9 +32,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { X } from 'lucide-react'
 
 import {
@@ -75,8 +73,9 @@ export function parseBillingErrorMaskConfig(raw: {
       ? raw.keywords.split(',').map((k) => k.trim()).filter(Boolean)
       : [],
     status_code:
-      Number.isFinite(n) && n >= 100 && n <= 599 ? n : 200,
-    message: '',
+      Number.isFinite(n) && n >= 100 && n <= 599
+        ? n
+        : DEFAULT_BILLING_ERROR_MASK_CONFIG.status_code,
   }
 }
 
