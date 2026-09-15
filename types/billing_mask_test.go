@@ -55,29 +55,39 @@ func TestMaskBillingErrorForNonAdmin(t *testing.T) {
 		return NewError(errStr("余额不足，请充值"), ErrorCodeInvalidRequest)
 	}
 
-	t.Run("non-admin with matching keyword is masked", func(t *testing.T) {
+	t.Run("普通用户匹配关键词时被掩盖", func(t *testing.T) {
 		e := newErr()
 		e.MaskBillingErrorForNonAdmin(false, true, []string{"余额"}, 524, masked)
 		if e.StatusCode != 524 {
 			t.Errorf("StatusCode = %d, want 524", e.StatusCode)
 		}
 		if e.Error() == "余额不足，请充值" {
-			t.Error("original billing message leaked to non-admin")
+			t.Error("original billing message leaked to non-root user")
 		}
 		if e.RelayError != nil {
 			t.Error("RelayError was not cleared")
 		}
 	})
 
-	t.Run("admin sees the original error", func(t *testing.T) {
+	t.Run("普通管理员（role=10）也应被掩盖（新需求）", func(t *testing.T) {
 		e := newErr()
-		e.MaskBillingErrorForNonAdmin(true, true, []string{"余额"}, 524, masked)
-		if e.StatusCode == 524 {
-			t.Error("admin error was masked")
+		// isRootUser=false 表示不是超级管理员（role < 100）
+		e.MaskBillingErrorForNonAdmin(false, true, []string{"余额"}, 524, masked)
+		if e.StatusCode != 524 {
+			t.Error("admin error should be masked under new requirement")
 		}
 	})
 
-	t.Run("disabled feature does not mask", func(t *testing.T) {
+	t.Run("超级管理员（role >= 100）看到原始错误", func(t *testing.T) {
+		e := newErr()
+		// isRootUser=true 表示超级管理员
+		e.MaskBillingErrorForNonAdmin(true, true, []string{"余额"}, 524, masked)
+		if e.StatusCode == 524 {
+			t.Error("root user error was masked")
+		}
+	})
+
+	t.Run("禁用功能时不掩盖", func(t *testing.T) {
 		e := newErr()
 		e.MaskBillingErrorForNonAdmin(false, false, []string{"余额"}, 524, masked)
 		if e.StatusCode == 524 {
@@ -85,7 +95,7 @@ func TestMaskBillingErrorForNonAdmin(t *testing.T) {
 		}
 	})
 
-	t.Run("empty keyword config does not mask", func(t *testing.T) {
+	t.Run("空关键词配置不掩盖", func(t *testing.T) {
 		e := NewError(errStr("upstream timeout"), ErrorCodeInvalidRequest)
 		e.MaskBillingErrorForNonAdmin(false, true, []string{""}, 524, masked)
 		if e.StatusCode == 524 {

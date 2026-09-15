@@ -139,6 +139,7 @@ var GroupFallbackBillingRates = "" // JSON map: {"default":[{"channel":"10","rat
 var BillingErrorMaskingEnabled = true
 var BillingErrorMaskingKeywords = "RMB,额度,余额,充值"
 var BillingErrorMaskingStatusCode = "524"
+var BillingErrorMaskingMessage = ""
 
 var SMTPServer = ""
 var SMTPPort = 587

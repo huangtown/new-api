@@ -35,7 +35,7 @@ func TestBillingErrorMaskE2E(t *testing.T) {
 	tests := []struct {
 		name           string
 		userId         int
-		isAdmin        bool
+		userRole       int
 		errorMsg       string
 		expectStatus   int
 		expectContains string
@@ -44,16 +44,25 @@ func TestBillingErrorMaskE2E(t *testing.T) {
 		{
 			name:           "普通用户触发计费关键词 - 应被掩盖",
 			userId:         100,
-			isAdmin:        false,
+			userRole:       1,  // 普通用户
 			errorMsg:       "账户余额不足，请充值",
 			expectStatus:   524,
 			expectContains: "bad response status code 524",
 			expectNotContains: "余额",
 		},
 		{
-			name:           "管理员触发计费关键词 - 应看到真实错误",
+			name:           "普通管理员触发计费关键词 - 应被掩盖（新需求）",
+			userId:         10,
+			userRole:       10,  // 普通管理员
+			errorMsg:       "账户余额不足，请充值",
+			expectStatus:   524,
+			expectContains: "bad response status code 524",
+			expectNotContains: "余额",
+		},
+		{
+			name:           "超级管理员触发计费关键词 - 应看到真实错误",
 			userId:         1,
-			isAdmin:        true,
+			userRole:       100,  // 超级管理员
 			errorMsg:       "账户余额不足，请充值",
 			expectStatus:   400,
 			expectContains: "余额",
@@ -62,16 +71,16 @@ func TestBillingErrorMaskE2E(t *testing.T) {
 		{
 			name:           "普通用户触发无关错误 - 不应被掩盖",
 			userId:         100,
-			isAdmin:        false,
+			userRole:       1,
 			errorMsg:       "upstream channel timeout",
 			expectStatus:   500,
 			expectContains: "timeout",
 			expectNotContains: "bad response status code 524",
 		},
 		{
-			name:           "大小写不敏感匹配",
-			userId:         100,
-			isAdmin:        false,
+			name:           "大小写不敏感匹配（普通管理员）",
+			userId:         10,
+			userRole:       10,
 			errorMsg:       "insufficient rmb balance",
 			expectStatus:   524,
 			expectContains: "bad response status code 524",
@@ -81,17 +90,13 @@ func TestBillingErrorMaskE2E(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// 模拟 model.IsAdmin
-			mockIsAdmin := func(id int) bool {
-				return tc.isAdmin
-			}
-
 			// 创建测试上下文
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
 			c.Set("id", tc.userId)
+			c.Set("role", tc.userRole)
 
-			// 模拟 relay.go:115-121 中的错误掩盖逻辑
+			// 模拟 relay.go:115-125 中的错误掩盖逻辑
 			newAPIError := types.NewError(
 				errStr(tc.errorMsg),
 				types.ErrorCodeInvalidRequest,
@@ -102,12 +107,12 @@ func TestBillingErrorMaskE2E(t *testing.T) {
 				newAPIError.StatusCode = 400
 			}
 
-			// 应用掩盖逻辑
-			isAdmin := mockIsAdmin(tc.userId)
+			// 应用掩盖逻辑（新需求：只有 role >= 100 的超级管理员不掩盖）
+			isRootUser := tc.userRole >= common.RoleRootUser // role >= 100
 			keywords := strings.Split(common.BillingErrorMaskingKeywords, ",")
 			statusCode := 524
 			maskMessage := "bad response status code " + common.BillingErrorMaskingStatusCode
-			newAPIError.MaskBillingErrorForNonAdmin(isAdmin, common.BillingErrorMaskingEnabled, keywords, statusCode, maskMessage)
+			newAPIError.MaskBillingErrorForNonAdmin(isRootUser, common.BillingErrorMaskingEnabled, keywords, statusCode, maskMessage)
 
 			// 返回JSON（模拟relay.go的响应）
 			c.JSON(newAPIError.StatusCode, gin.H{

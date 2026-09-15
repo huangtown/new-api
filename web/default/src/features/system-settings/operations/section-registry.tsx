@@ -168,6 +168,7 @@ const OPERATIONS_SECTIONS = [
           enabled: settings.BillingErrorMaskingEnabled,
           keywords: settings.BillingErrorMaskingKeywords,
           statusCode: settings.BillingErrorMaskingStatusCode,
+          message: settings.BillingErrorMaskingMessage,
         })}
       />
     ),

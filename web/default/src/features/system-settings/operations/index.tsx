@@ -34,6 +34,7 @@ const defaultOperationsSettings: OperationsSettings = {
   BillingErrorMaskingEnabled: false,
   BillingErrorMaskingKeywords: 'RMB,额度,余额,充值',
   BillingErrorMaskingStatusCode: '524',
+  BillingErrorMaskingMessage: '',
   SMTPServer: '',
   SMTPPort: '',
   SMTPAccount: '',

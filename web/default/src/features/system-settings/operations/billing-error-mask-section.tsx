@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { X } from 'lucide-react'
 
@@ -49,6 +50,7 @@ const billingErrorMaskSchema = z.object({
   enabled: z.boolean(),
   keywords: z.array(z.string()),
   status_code: z.number().int().min(100).max(599),
+  message: z.string(),
 })
 
 type BillingErrorMaskValues = z.infer<typeof billingErrorMaskSchema>
@@ -59,12 +61,14 @@ export const DEFAULT_BILLING_ERROR_MASK_CONFIG: BillingErrorMaskConfig = {
   enabled: false,
   keywords: [],
   status_code: 524,
+  message: '',
 }
 
 export function parseBillingErrorMaskConfig(raw: {
   enabled: boolean
   keywords: string
   statusCode: string
+  message: string
 }): BillingErrorMaskConfig {
   const n = Number(raw.statusCode)
   return {
@@ -76,6 +80,7 @@ export function parseBillingErrorMaskConfig(raw: {
       Number.isFinite(n) && n >= 100 && n <= 599
         ? n
         : DEFAULT_BILLING_ERROR_MASK_CONFIG.status_code,
+    message: raw.message || '',
   }
 }
 
@@ -160,6 +165,10 @@ export function BillingErrorMaskSection({ defaultValues }: BillingErrorMaskSecti
       key: 'BillingErrorMaskingStatusCode',
       value: String(data.status_code),
     })
+    await updateOption.mutateAsync({
+      key: 'BillingErrorMaskingMessage',
+      value: data.message,
+    })
   }
 
   return (
@@ -232,6 +241,27 @@ export function BillingErrorMaskSection({ defaultValues }: BillingErrorMaskSecti
                     className='w-32'
                     {...field}
                     onChange={(e) => field.onChange(Number(e.target.value))}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='message'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Custom Error Message')}</FormLabel>
+                <FormDescription>
+                  {t('Optional custom message shown to non-root users when billing error is masked. Leave empty to use default format: "bad response status code [code]".')}
+                </FormDescription>
+                <FormControl>
+                  <Textarea
+                    placeholder={t('e.g., Service temporarily unavailable')}
+                    className='min-h-[80px] resize-none'
+                    {...field}
                   />
                 </FormControl>
                 <FormMessage />

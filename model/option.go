@@ -192,6 +192,7 @@ func InitOptionMap() {
 	common.OptionMap["BillingErrorMaskingEnabled"] = strconv.FormatBool(common.BillingErrorMaskingEnabled)
 	common.OptionMap["BillingErrorMaskingKeywords"] = common.BillingErrorMaskingKeywords
 	common.OptionMap["BillingErrorMaskingStatusCode"] = common.BillingErrorMaskingStatusCode
+	common.OptionMap["BillingErrorMaskingMessage"] = common.BillingErrorMaskingMessage
 
 	// 自动添加所有注册的模型配置
 	modelConfigs := config.GlobalConfig.ExportAllConfigs()
@@ -617,6 +618,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.BillingErrorMaskingKeywords = value
 	case "BillingErrorMaskingStatusCode":
 		common.BillingErrorMaskingStatusCode = value
+	case "BillingErrorMaskingMessage":
+		common.BillingErrorMaskingMessage = value
 	case "StreamCacheQueueLength":
 		setting.StreamCacheQueueLength, _ = strconv.Atoi(value)
 	case "PayMethods":

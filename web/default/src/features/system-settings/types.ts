@@ -339,6 +339,7 @@ export type OperationsSettings = {
   BillingErrorMaskingEnabled: boolean
   BillingErrorMaskingKeywords: string
   BillingErrorMaskingStatusCode: string
+  BillingErrorMaskingMessage: string
   SMTPServer: string
   SMTPPort: string
   SMTPAccount: string

@@ -112,17 +112,21 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 				}
 			}
 
-			// 报错掩盖：对非管理员用户掩盖包含计费关键词的报错
-			userId := c.GetInt("id")
-			isAdmin := model.IsAdmin(userId)
+			// 报错掩盖：仅对超级管理员显示原始报错，其他所有用户（包括管理员）都掩盖
+			userRole := c.GetInt("role")
+			isRootUser := userRole >= common.RoleRootUser // 只有 role >= 100 的超级管理员不掩盖
 			keywords := strings.Split(common.BillingErrorMaskingKeywords, ",")
 			// 配置非法时回退到默认值，避免写出 0 这种非法状态码
 			statusCode, err := strconv.Atoi(common.BillingErrorMaskingStatusCode)
 			if err != nil || statusCode < 100 || statusCode > 599 {
 				statusCode = http.StatusServiceUnavailable
 			}
-			maskMessage := "bad response status code " + strconv.Itoa(statusCode)
-			newAPIError.MaskBillingErrorForNonAdmin(isAdmin, common.BillingErrorMaskingEnabled, keywords, statusCode, maskMessage)
+			// 使用自定义报错内容，为空时回退到默认格式
+			maskMessage := common.BillingErrorMaskingMessage
+			if maskMessage == "" {
+				maskMessage = "bad response status code " + strconv.Itoa(statusCode)
+			}
+			newAPIError.MaskBillingErrorForNonAdmin(isRootUser, common.BillingErrorMaskingEnabled, keywords, statusCode, maskMessage)
 
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
