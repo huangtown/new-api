@@ -112,21 +112,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 				}
 			}
 
-			// 报错掩盖：仅超级管理员看到原始报错，其他所有用户（含管理员）都掩盖。
-			// 中继路径只过 TokenAuth，context 里没有 role，必须按 user id 回查。
-			isRootUser := model.IsRootUser(c.GetInt("id"))
-			keywords := strings.Split(common.BillingErrorMaskingKeywords, ",")
-			// 配置非法时回退到默认值，避免写出 0 这种非法状态码
-			statusCode, err := strconv.Atoi(common.BillingErrorMaskingStatusCode)
-			if err != nil || statusCode < 100 || statusCode > 599 {
-				statusCode = http.StatusServiceUnavailable
-			}
-			// 使用自定义报错内容，为空时回退到默认格式
-			maskMessage := common.BillingErrorMaskingMessage
-			if maskMessage == "" {
-				maskMessage = "bad response status code " + strconv.Itoa(statusCode)
-			}
-			newAPIError.MaskBillingErrorForNonAdmin(isRootUser, common.BillingErrorMaskingEnabled, keywords, statusCode, maskMessage)
+			// 报错掩盖：仅超级管理员透传原始报错，其他所有用户（含管理员）都掩盖。
+			// 策略同时供下面的错误日志出口使用（processChannelError），
+			// 两个出口必须一致，否则用户能从 /api/log/self 读回原文。
+			maskPolicy := service.ResolveBillingMaskPolicy(c.GetInt("id"))
+			maskPolicy.Apply(newAPIError)
 
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
@@ -495,7 +485,12 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			startTime = time.Now()
 		}
 		useTimeSeconds := int(time.Since(startTime).Seconds())
-		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
+		// 错误日志是独立于 HTTP 响应的第二个出口：用户可通过 /api/log/self
+		// 读回自己的日志行，且 formatUserLogs 不删除 Content。这里不掩盖的话，
+		// 用户在响应里看到掩盖文案，去日志页却能看到上游计费原文。
+		logContent := service.ResolveBillingMaskPolicy(userId).
+			MaskLogContent(err.MaskSensitiveErrorWithStatusCode())
+		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, logContent, tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 	}
 
 }
@@ -533,8 +528,15 @@ func RelayMidjourney(c *gin.Context) {
 			mjErr.Result = "当前分组负载已饱和，请稍后再试，或升级账户以提升服务质量。"
 			statusCode = http.StatusTooManyRequests
 		}
+		description := fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result)
+		// Midjourney 有独立的错误响应体，同样需要掩盖，否则额度报错会绕过
+		// /v1/chat/completions 上的掩盖从这里泄露。
+		if policy := service.ResolveBillingMaskPolicy(c.GetInt("id")); policy.ShouldMask(description) {
+			statusCode = policy.StatusCode
+			description = policy.Message
+		}
 		c.JSON(statusCode, gin.H{
-			"description": fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result),
+			"description": description,
 			"type":        "upstream_error",
 			"code":        mjErr.Code,
 		})
@@ -702,9 +704,18 @@ func RelayTask(c *gin.Context) {
 }
 
 // respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写）
+// respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写与报错掩盖）
 func respondTaskError(c *gin.Context, taskErr *dto.TaskError) {
 	if taskErr.StatusCode == http.StatusTooManyRequests {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
+	}
+	// Task 系列（Suno / Midjourney / 视频等）与 /v1/chat/completions 走不同的
+	// 错误出口，同样需要掩盖：否则同一条额度报错在 chat 上被掩盖，在
+	// /suno/submit/* 上却原样泄露精确余额。
+	if policy := service.ResolveBillingMaskPolicy(c.GetInt("id")); policy.ShouldMask(taskErr.Message) {
+		taskErr.StatusCode = policy.StatusCode
+		taskErr.Message = policy.Message
+		taskErr.Code = string(types.ErrorCodeBadResponseStatusCode)
 	}
 	c.JSON(taskErr.StatusCode, taskErr)
 }
