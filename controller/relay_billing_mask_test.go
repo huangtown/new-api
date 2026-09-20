@@ -107,8 +107,10 @@ func TestBillingErrorMaskE2E(t *testing.T) {
 				newAPIError.StatusCode = 400
 			}
 
-			// 应用掩盖逻辑（新需求：只有 role >= 100 的超级管理员不掩盖）
-			isRootUser := tc.userRole >= common.RoleRootUser // role >= 100
+			// 应用掩盖逻辑。注意 relay 路径只过 TokenAuth，context 里没有
+			// role，所以生产代码用 model.IsRootUser(userId) 回查数据库；
+			// 这里直接用用例声明的角色模拟其返回值。
+			isRootUser := tc.userRole >= common.RoleRootUser
 			keywords := strings.Split(common.BillingErrorMaskingKeywords, ",")
 			statusCode := 524
 			maskMessage := "bad response status code " + common.BillingErrorMaskingStatusCode
@@ -194,4 +196,32 @@ func TestInvalidStatusCodeFallback(t *testing.T) {
 			assert.Equal(t, tc.expectCode, statusCode, "status code mismatch")
 		})
 	}
+}
+
+// relay 路径只经过 TokenAuth，而 TokenAuth 从不写入 "role"
+// （只有 session 态的 UserAuth 会，见 middleware/auth.go:151）。
+// 掩盖逻辑若依赖 c.GetInt("role")，超级管理员也会拿到 0 而被误掩盖——
+// 这正是线上超管 key 收到 "504 openai_error" 的原因。
+func TestRelayContextHasNoRole(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	_, c := func() (*httptest.ResponseRecorder, *gin.Context) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		return w, c
+	}()
+
+	// 模拟 SetupContextForToken 的写入（middleware/auth.go:451-455）：
+	// 有 id，但没有 role。
+	c.Set("id", 1)
+	c.Set("token_id", 42)
+
+	if role := c.GetInt("role"); role != 0 {
+		t.Fatalf("前提失效：relay context 现在有 role=%d，请重新评估掩盖逻辑", role)
+	}
+
+	if 0 >= common.RoleRootUser {
+		t.Fatal("缺省 role 0 不应被判定为超级管理员")
+	}
+
+	t.Log("✓ 确认 relay context 无 role，掩盖判定必须回查数据库（model.IsRootUser）")
 }

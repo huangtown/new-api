@@ -1,6 +1,9 @@
 package types
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // Regression test: an unconfigured (empty) keyword list must NOT mask errors.
 // strings.Split("", ",") yields []string{""}, and strings.Contains(s, "") is
@@ -107,3 +110,80 @@ func TestMaskBillingErrorForNonAdmin(t *testing.T) {
 type errStr string
 
 func (e errStr) Error() string { return string(e) }
+
+// 掩盖后必须同时重置 errorType。此前只清了 RelayError，ToOpenAIError()
+// 仍走 ErrorTypeOpenAIError 分支，对 nil RelayError 断言失败 -> 空消息 ->
+// 回退成 errorType 字面量，客户端看到 "openai_error" 而不是配置的掩盖文案。
+func TestMaskPreservesCustomMessageAcrossFormats(t *testing.T) {
+	const custom = "bad response"
+
+	t.Run("上游 OpenAI 格式错误", func(t *testing.T) {
+		e := WithOpenAIError(OpenAIError{
+			Message: "Insufficient account balance",
+			Type:    "openai_error",
+			Code:    "insufficient_user_quota",
+		}, 403)
+
+		e.MaskBillingErrorForNonAdmin(false, true,
+			[]string{"Insufficient account balance"}, 504, custom)
+
+		if e.StatusCode != 504 {
+			t.Errorf("StatusCode = %d, want 504", e.StatusCode)
+		}
+		if got := e.ToOpenAIError().Message; got != custom {
+			t.Errorf("ToOpenAIError().Message = %q, want %q", got, custom)
+		}
+		if got := e.ToClaudeError().Message; got != custom {
+			t.Errorf("ToClaudeError().Message = %q, want %q", got, custom)
+		}
+	})
+
+	t.Run("上游 Claude 格式错误", func(t *testing.T) {
+		e := WithClaudeError(ClaudeError{
+			Message: "余额不足",
+			Type:    "invalid_request_error",
+		}, 403)
+
+		e.MaskBillingErrorForNonAdmin(false, true, []string{"余额"}, 504, custom)
+
+		if got := e.ToClaudeError().Message; got != custom {
+			t.Errorf("ToClaudeError().Message = %q, want %q", got, custom)
+		}
+		if got := e.ToOpenAIError().Message; got != custom {
+			t.Errorf("ToOpenAIError().Message = %q, want %q", got, custom)
+		}
+	})
+
+	t.Run("掩盖后不泄露上游原文", func(t *testing.T) {
+		e := WithOpenAIError(OpenAIError{
+			Message: "Insufficient account balance",
+			Type:    "openai_error",
+		}, 403)
+
+		e.MaskBillingErrorForNonAdmin(false, true,
+			[]string{"Insufficient account balance"}, 504, custom)
+
+		if e.RelayError != nil {
+			t.Error("RelayError 未清除，存在泄露风险")
+		}
+		if strings.Contains(e.ToOpenAIError().Message, "Insufficient") {
+			t.Error("上游原文泄露到掩盖后的消息里")
+		}
+	})
+}
+
+// maskMessage 为空时调用方（relay.go）会填入默认文案，这里确认
+// 掩盖本身不会把空消息又回退成 errorType 字面量。
+func TestMaskWithDefaultMessage(t *testing.T) {
+	e := WithOpenAIError(OpenAIError{
+		Message: "余额不足",
+		Type:    "openai_error",
+	}, 403)
+
+	e.MaskBillingErrorForNonAdmin(false, true, []string{"余额"}, 504,
+		"bad response status code 504")
+
+	if got := e.ToOpenAIError().Message; got != "bad response status code 504" {
+		t.Errorf("Message = %q, want default mask text", got)
+	}
+}

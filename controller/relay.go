@@ -112,9 +112,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 				}
 			}
 
-			// 报错掩盖：仅对超级管理员显示原始报错，其他所有用户（包括管理员）都掩盖
-			userRole := c.GetInt("role")
-			isRootUser := userRole >= common.RoleRootUser // 只有 role >= 100 的超级管理员不掩盖
+			// 报错掩盖：仅超级管理员看到原始报错，其他所有用户（含管理员）都掩盖。
+			// 中继路径只过 TokenAuth，context 里没有 role，必须按 user id 回查。
+			isRootUser := model.IsRootUser(c.GetInt("id"))
 			keywords := strings.Split(common.BillingErrorMaskingKeywords, ",")
 			// 配置非法时回退到默认值，避免写出 0 这种非法状态码
 			statusCode, err := strconv.Atoi(common.BillingErrorMaskingStatusCode)

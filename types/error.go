@@ -207,8 +207,13 @@ func (e *NewAPIError) MaskBillingErrorForNonAdmin(isAdmin bool, enabled bool, ke
 		e.StatusCode = statusCode
 		e.Err = errors.New(maskMessage)
 		e.errorCode = ErrorCodeBadResponseStatusCode
-		// 清除原始的 RelayError，避免泄露
+		// 清除原始的 RelayError，避免泄露。errorType 必须一并重置：
+		// ToOpenAIError/ToClaudeError 会按 errorType 去断言 RelayError，
+		// 若仍是 OpenAI/Claude 类型，断言失败会得到空消息，最终回退成
+		// errorType 字面量（如 "openai_error"），掩盖消息就丢了。
+		e.errorType = ErrorTypeNewAPIError
 		e.RelayError = nil
+		e.Metadata = nil
 	}
 }
 

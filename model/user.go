@@ -1050,6 +1050,22 @@ func IsAdmin(userId int) bool {
 	return user.Role >= common.RoleAdminUser
 }
 
+// IsRootUser 判断用户是否为超级管理员。
+// 中继路径只经过 TokenAuth，不会像 UserAuth 那样往 context 写入 role，
+// 需要按 user id 回查数据库。
+func IsRootUser(userId int) bool {
+	if userId == 0 {
+		return false
+	}
+	var user User
+	err := DB.Where("id = ?", userId).Select("role").Find(&user).Error
+	if err != nil {
+		common.SysLog("no such user " + err.Error())
+		return false
+	}
+	return user.Role >= common.RoleRootUser
+}
+
 func ValidateAccessToken(token string) (*User, error) {
 	if token == "" {
 		return nil, nil
