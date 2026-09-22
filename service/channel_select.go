@@ -112,6 +112,31 @@ func (p *RetryParam) ResetRetryNextTry() {
 //
 //	Retry=3: GroupB, priority1 (startRetryIndex=2, priorityRetry=1)
 //	         分组B, 优先级1
+//
+// selectChannelPreferringUnused prefers a channel the request has not tried
+// yet, but never lets that preference turn a retryable failure into a hard
+// one. When every candidate has already been attempted — a single-channel
+// group being the common case — it retries the lookup without the exclusion
+// so a transient upstream 5xx still gets its retry.
+//
+// This sits at the lookup level rather than around CacheGetRandomSatisfiedChannel
+// because the auto-group scan mutates ContextKeyAutoGroupIndex and the retry
+// counter as it advances; re-running the whole scan would consume that state a
+// second time and skip groups.
+func selectChannelPreferringUnused(
+	group string,
+	modelName string,
+	retry int,
+	filters []dto.ChannelFilter,
+	excludedChannelIDs []int,
+) (*model.Channel, error) {
+	channel, err := model.GetRandomSatisfiedChannelExcluding(group, modelName, retry, filters, excludedChannelIDs)
+	if err != nil || channel != nil || len(excludedChannelIDs) == 0 {
+		return channel, err
+	}
+	return model.GetRandomSatisfiedChannelExcluding(group, modelName, retry, filters, nil)
+}
+
 func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
 	var channel *model.Channel
 	var err error
@@ -148,7 +173,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannelExcluding(
+			channel, _ = selectChannelPreferringUnused(
 				autoGroup,
 				param.ModelName,
 				priorityRetry,
@@ -192,7 +217,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannelExcluding(
+		channel, err = selectChannelPreferringUnused(
 			param.TokenGroup,
 			param.ModelName,
 			param.GetRetry(),

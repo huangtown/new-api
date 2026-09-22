@@ -92,9 +92,10 @@ test.each([
   }
 )
 
-// The cache read multiplier is optional per group: the backend rejects ratios
-// <= 0 and reads an absent entry as "fall back to the global value", so a
-// blank cell must be omitted from the payload rather than written as 0.
+// The cache read multiplier is optional per group: the resolver only honours
+// a stored ratio when it is > 0, so a blank cell must be omitted from the
+// payload rather than written as 0, which would persist a value that behaves
+// like "unset" but reads as a real configuration.
 test('cache read multiplier round-trips and omits blank cells', async () => {
   const user = userEvent.setup()
   render(<PricingFixture />)

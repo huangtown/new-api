@@ -205,9 +205,10 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
     if (topup !== '' && Number.isFinite(Number(topup))) {
       topupGroupRatio[name] = Number(topup)
     }
-    // Backend rejects ratios <= 0 (CheckGroupCacheReadAmplificationRatio) and
-    // treats an absent entry as "fall back to the global ratio", so an empty
-    // or non-positive cell is omitted rather than written as 0.
+    // ResolveCacheReadAmplificationRatio only honours a stored ratio when it
+    // is > 0, so a 0 behaves exactly like no entry at all — it just leaves a
+    // misleading value in the saved config. Omit those cells instead. The
+    // backend additionally rejects negative ratios.
     const cacheRead = row.cacheReadRatio.trim()
     if (cacheRead !== '' && Number(cacheRead) > 0) {
       groupCacheReadAmplificationRatio[name] = Number(cacheRead)
