@@ -55,6 +55,8 @@ type Channel struct {
 
 	OtherSettings string `json:"settings" gorm:"column:settings"` // 其他设置，存储azure版本等不需要检索的信息，详见dto.ChannelOtherSettings
 
+	Alias *string `json:"alias" gorm:"type:varchar(255)"` // root-only display alias
+
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
 }

@@ -1,11 +1,43 @@
 package openai
 
 import (
+	"net/http"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
+
+// openAIErrorTypeToStatusCode maps OpenAI-compatible error type strings to
+// their corresponding HTTP status codes. It is used to convert in-stream error
+// events (which carry the semantic type from the upstream body rather than the
+// HTTP status, because the stream was opened with 200 OK) into an appropriate
+// client-facing status code so that, e.g., a rate-limit event surfaces as 429
+// rather than 500.
+func openAIErrorTypeToStatusCode(errType string) int {
+	switch errType {
+	case "invalid_request_error":
+		return http.StatusBadRequest // 400
+	case "authentication_error":
+		return http.StatusUnauthorized // 401
+	case "permission_error", "permission_denied_error":
+		return http.StatusForbidden // 403
+	case "not_found_error":
+		return http.StatusNotFound // 404
+	case "request_too_large":
+		return http.StatusRequestEntityTooLarge // 413
+	case "rate_limit_error":
+		return http.StatusTooManyRequests // 429
+	case "overloaded_error":
+		return 529 // Anthropic-specific / equivalent to 503 in practice
+	case "api_error", "server_error":
+		return http.StatusInternalServerError // 500
+	default:
+		return http.StatusInternalServerError // 500 — unknown, preserve prior behaviour
+	}
+}
 
 func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, responseBody []byte) {
 	if info == nil || usage == nil {
@@ -48,6 +80,46 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 			}
 		}
 	}
+
+	// Apply the runtime cache read amplification ratio. The mutation lives here
+	// (rather than in service.PostTextConsumeQuota) so that the response body
+	// sent back to the caller also reflects the amplified value — the relay
+	// adaptor marshals `usage` into the wire before billing is settled.
+	//
+	// OpenRouter is excluded because CalcOpenRouterCacheCreateTokens
+	// (service/text_quota.go) reverse-derives cache creation tokens from the
+	// upstream-reported cost using the ORIGINAL cache read token count;
+	// feeding it the amplified value would skew the math. The billing path
+	// for OpenRouter therefore sees the un-amplified value as well.
+	if info.ChannelType != constant.ChannelTypeOpenRouter {
+		amplifyCachedTokensForResponse(info, usage)
+	}
+}
+
+// amplifyCachedTokensForResponse multiplies PromptTokensDetails.CachedTokens
+// by the effective cache read amplification ratio for the relay's
+// using-group when the ratio differs from 1.0 and the cached token count is
+// non-zero. Exported as a package-level helper so the other OpenAI-family
+// adaptors (Responses API, chat_via_responses, responses_via_chat) can call
+// it directly.
+//
+// When info is nil (only the test helper does this), we fall back to the
+// global common.CacheReadAmplificationRatio for symmetry with the per-group
+// fallback path.
+func amplifyCachedTokensForResponse(info *relaycommon.RelayInfo, usage *dto.Usage) {
+	if usage == nil {
+		return
+	}
+	var ratio float64
+	if info != nil {
+		ratio = ratio_setting.ResolveCacheReadAmplificationRatio(info.UsingGroup)
+	} else {
+		ratio = common.CacheReadAmplificationRatio
+	}
+	if ratio == 1.0 || usage.PromptTokensDetails.CachedTokens <= 0 {
+		return
+	}
+	usage.PromptTokensDetails.CachedTokens = int(float64(usage.PromptTokensDetails.CachedTokens) * ratio)
 }
 
 func extractCachedTokensFromBody(body []byte) (int, bool) {

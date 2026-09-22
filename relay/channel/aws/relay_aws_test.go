@@ -201,7 +201,7 @@ func TestNewAwsInvokeContextInheritsParent(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			common.RelayTimeout = test.relayTimeout
 			parent, cancelParent := context.WithCancel(context.Background())
-			invokeContext, cancelInvoke := newAwsInvokeContext(parent)
+			invokeContext, cancelInvoke := newAwsInvokeContext(parent, 0)
 			defer cancelInvoke()
 
 			_, hasDeadline := invokeContext.Deadline()

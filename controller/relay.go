@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
+	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -74,6 +76,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	var (
 		newAPIError *types.NewAPIError
 		ws          *websocket.Conn
+		relayInfo   *relaycommon.RelayInfo
 	)
 
 	if relayFormat == types.RelayFormatOpenAIRealtime {
@@ -91,6 +94,32 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			service.RecordRequestPolicyTermination(c, newAPIError)
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			// Capture all request data before handing work to a goroutine. Gin contexts
+			// are pooled and must not be read after the handler returns.
+			if !c.GetBool("error_email_notified") {
+				if (common.ErrorEmailNotifyEnabled && strings.TrimSpace(common.ErrorEmailNotifyRecipients) != "") ||
+					(common.PushPlusEnabled && strings.TrimSpace(common.PushPlusToken) != "") {
+					method, path, channelInfo := "", "", ""
+					if c.Request != nil {
+						method, path = c.Request.Method, c.Request.URL.String()
+					}
+					if relayInfo != nil && relayInfo.ChannelMeta != nil {
+						channelInfo = fmt.Sprintf("\n渠道: #%d %s", relayInfo.ChannelMeta.ChannelId, common.GetContextKeyString(c, constant.ContextKeyChannelName))
+					}
+					detail := fmt.Sprintf("请求: %s %s\n状态码: %d\n消息: %s%s\n请求ID: %s%s",
+						method, path, newAPIError.StatusCode, newAPIError.Error(), channelInfo, requestId,
+						service.BuildRetryChainDetail(c.GetStringSlice("use_channel")))
+					subject := fmt.Sprintf("Relay Error (status=%d)", newAPIError.StatusCode)
+					gopool.Go(func() { service.NotifyError(subject, detail) })
+				}
+			}
+
+			// 报错掩盖：仅超级管理员透传原始报错，其他所有用户（含管理员）都掩盖。
+			// 策略同时供下面的错误日志出口使用（processChannelError），
+			// 两个出口必须一致，否则用户能从 /api/log/self 读回原文。
+			maskPolicy := service.ResolveBillingMaskPolicy(c.GetInt("id"))
+			maskPolicy.Apply(newAPIError)
+
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError())
@@ -118,7 +147,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
-	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, request, ws)
+	relayInfo, err = relaycommon.GenRelayInfo(c, relayFormat, request, ws)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
@@ -204,6 +233,39 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
 
+		// ------- channel fallback (渠道兜底) -------
+		// Must run BEFORE DecideRelayRetry/processChannelError: those record a
+		// policy failure and may disable the channel, and a successful fallback
+		// makes this attempt a non-failure from the caller's point of view.
+		if !c.GetBool("fallback_used") && service.ShouldTriggerFallback(newAPIError) {
+			usedChannelIds := parseUsedChannelIds(c.GetStringSlice("use_channel"))
+			fallbackChannel, fbErr := service.GetFallbackChannel(usedChannelIds, relayInfo.TokenGroup)
+			if fbErr == nil && fallbackChannel != nil {
+				logger.LogInfo(c, fmt.Sprintf("触发渠道兜底: 渠道#%d → 兜底渠道#%d, 原因: %s", channel.Id, fallbackChannel.Id, common.LocalLogPreview(newAPIError.Error())))
+				c.Set("fallback_used", true)
+				// SetupContextForSelectedChannel sets ALL context keys (api key,
+				// base url, settings, etc.) — not just channel_id/type/name.
+				if setupErr := middleware.SetupContextForSelectedChannel(c, fallbackChannel, relayInfo.OriginModelName); setupErr != nil {
+					logger.LogWarn(c, fmt.Sprintf("兜底渠道#%d 配置失败: %v", fallbackChannel.Id, setupErr))
+					break
+				}
+				c.Set("auto_ban", false)
+				c.Set("fallback_channel_id", fallbackChannel.Id)
+				relayInfo.FallbackBillingRate = service.GetFallbackBillingRate(fallbackChannel.Id, relayInfo.TokenGroup)
+				relayInfo.ChannelMeta = nil
+				retryParam.SetRetry(-1) // -1 so IncreaseRetry() → 0, works even when RetryTimes==0
+				newAPIError = nil
+				continue
+			} else if fbErr != nil {
+				logger.LogWarn(c, fmt.Sprintf("兜底渠道不可用: %v", fbErr))
+			}
+		}
+		// If fallback failed and normal retry selected another channel, do not
+		// carry the fallback-only billing rate into that successful request.
+		if relayInfo.FallbackBillingRate > 0 && c.GetInt("fallback_channel_id") != 0 && channel.Id != c.GetInt("fallback_channel_id") {
+			relayInfo.FallbackBillingRate = 0
+		}
+
 		decision := service.DecideRelayRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry())
 		service.RecordPolicyFailure(c, channel.Id, newAPIError, decision)
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError, relayInfo)
@@ -252,6 +314,17 @@ func CountClaudeTokens(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"input_tokens": inputTokens})
 }
 
+// parseUsedChannelIds 将上下文中已使用的渠道ID字符串切片转为int切片，用于重试和兜底时排除已用渠道。
+func parseUsedChannelIds(raw []string) []int {
+	var ids []int
+	for _, s := range raw {
+		if id, convErr := strconv.Atoi(s); convErr == nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
 var upgrader = websocket.Upgrader{
 	Subprotocols: []string{"realtime", "responses"}, // WS 握手支持的协议，如果有使用 Sec-WebSocket-Protocol，则必须在此声明对应的 Protocol
 	CheckOrigin: func(r *http.Request) bool {
@@ -260,7 +333,16 @@ var upgrader = websocket.Upgrader{
 }
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
-	if info.ChannelMeta == nil {
+	usedChannelIDs := parseUsedChannelIds(c.GetStringSlice("use_channel"))
+	currentChannelID := c.GetInt("channel_id")
+	currentChannelUsed := false
+	for _, usedChannelID := range usedChannelIDs {
+		if usedChannelID == currentChannelID {
+			currentChannelUsed = true
+			break
+		}
+	}
+	if info.ChannelMeta == nil && !currentChannelUsed {
 		autoBan := c.GetBool("auto_ban")
 		autoBanInt := 1
 		if !autoBan {
@@ -275,6 +357,7 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 		service.RequestPolicy(c).BeginAttempt(channel, info.UsingGroup)
 		return channel, nil
 	}
+	retryParam.ExcludedChannelIDs = usedChannelIDs
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 	if err != nil {
 		return nil, types.NewError(fmt.Errorf("获取分组 %s 下模型 %s 的可用渠道失败（retry）: %s", selectGroup, info.OriginModelName, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
@@ -337,8 +420,15 @@ func RelayMidjourney(c *gin.Context) {
 			mjErr.Result = "当前分组负载已饱和，请稍后再试，或升级账户以提升服务质量。"
 			statusCode = http.StatusTooManyRequests
 		}
+		description := fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result)
+		// Midjourney 有独立的错误响应体，同样需要掩盖，否则额度报错会绕过
+		// /v1/chat/completions 上的掩盖从这里泄露。
+		if policy := service.ResolveBillingMaskPolicy(c.GetInt("id")); policy.ShouldMask(description) {
+			statusCode = policy.StatusCode
+			description = policy.Message
+		}
 		c.JSON(statusCode, gin.H{
-			"description": fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result),
+			"description": description,
 			"type":        "upstream_error",
 			"code":        mjErr.Code,
 		})
@@ -566,6 +656,9 @@ func executeTaskSubmissionWith(
 				taskAPIError,
 				relayInfo)
 		}
+		if relayInfo.LockedChannel != nil {
+			break
+		}
 
 		willRetry := decision.Action == "retry"
 		diagnostics.attemptFailed(retryParam.GetRetry()+1, channel, taskErr, willRetry)
@@ -769,10 +862,18 @@ func respondTaskSubmissionError(c *gin.Context, taskErr *taskdto.TaskError) {
 	respondTaskError(c, taskErr)
 }
 
-// respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写）
+// respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写与报错掩盖）
 func respondTaskError(c *gin.Context, taskErr *taskdto.TaskError) {
 	if taskErr.StatusCode == http.StatusTooManyRequests {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
+	}
+	// Task 系列（Suno / Midjourney / 视频等）与 /v1/chat/completions 走不同的
+	// 错误出口，同样需要掩盖：否则同一条额度报错在 chat 上被掩盖，在
+	// /suno/submit/* 上却原样泄露精确余额。
+	if policy := service.ResolveBillingMaskPolicy(c.GetInt("id")); policy.ShouldMask(taskErr.Message) {
+		taskErr.StatusCode = policy.StatusCode
+		taskErr.Message = policy.Message
+		taskErr.Code = string(types.ErrorCodeBadResponseStatusCode)
 	}
 	c.JSON(taskErr.StatusCode, taskErr)
 }

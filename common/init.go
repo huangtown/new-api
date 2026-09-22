@@ -99,6 +99,50 @@ func InitEnv() {
 			}
 		}
 	}
+	ErrorEmailNotifyEnabled = GetEnvOrDefaultBool("ERROR_EMAIL_NOTIFY_ENABLED", false)
+	ErrorEmailNotifyRecipients = GetEnvOrDefaultString("ERROR_EMAIL_NOTIFY_RECIPIENTS", "")
+
+	PushPlusEnabled = GetEnvOrDefaultBool("PUSHPLUS_ENABLED", false)
+	PushPlusToken = GetEnvOrDefaultString("PUSHPLUS_TOKEN", "")
+	PushPlusTopic = GetEnvOrDefaultString("PUSHPLUS_TOPIC", "")
+	PushPlusChannel = GetEnvOrDefaultString("PUSHPLUS_CHANNEL", "wechat")
+
+	if v := os.Getenv("CACHE_READ_AMPLIFICATION_RATIO"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
+			CacheReadAmplificationRatio = f
+		}
+	}
+
+	FallbackEnabled = GetEnvOrDefaultBool("FALLBACK_ENABLED", false)
+	FallbackChannelIDs = GetEnvOrDefaultString("FALLBACK_CHANNEL_IDS", "")
+	FallbackStatusCodes = GetEnvOrDefaultString("FALLBACK_STATUS_CODES", "400")
+	FallbackTriggerKeywords = GetEnvOrDefaultString("FALLBACK_TRIGGER_KEYWORDS", "too long,context length,maximum context,prompt too long,token limit,context_length_exceeded,reduce the length")
+	GroupFallbackChannelIDs = GetEnvOrDefaultString("GROUP_FALLBACK_CHANNEL_IDS", "")
+	GroupFallbackBillingRates = GetEnvOrDefaultString("GROUP_FALLBACK_BILLING_RATES", "")
+
+	if v := os.Getenv("SMTP_SERVER"); v != "" {
+		SMTPServer = v
+	}
+	if v := os.Getenv("SMTP_PORT"); v != "" {
+		SMTPPort, _ = strconv.Atoi(v)
+	}
+	if v := os.Getenv("SMTP_ACCOUNT"); v != "" {
+		SMTPAccount = v
+	}
+	if v := os.Getenv("SMTP_FROM"); v != "" {
+		SMTPFrom = v
+	} else if SMTPAccount != "" {
+		SMTPFrom = SMTPAccount
+	}
+	if v := os.Getenv("SMTP_TOKEN"); v != "" {
+		SMTPToken = v
+	}
+	SMTPTimeout = GetEnvOrDefault("SMTP_TIMEOUT", 30)
+	if SMTPTimeout <= 0 {
+		SMTPTimeout = 30
+	}
+	SMTPSSLEnabled = GetEnvOrDefaultBool("SMTP_SSL_ENABLED", false)
+
 	SMTPStartTLSEnabled = GetEnvOrDefaultBool("SMTP_STARTTLS_ENABLE", GetEnvOrDefaultBool("SMTP_STARTTLS_ENABLED", false))
 	SMTPInsecureSkipVerify = GetEnvOrDefaultBool("SMTP_INSECURE_SKIP_VERIFY", GetEnvOrDefaultBool("SMTP_TLS_INSECURE_SKIP_VERIFY", false))
 

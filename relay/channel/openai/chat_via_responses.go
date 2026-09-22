@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -108,11 +109,11 @@ func OaiResponsesToChatBufferedStreamHandler(c *gin.Context, info *relaycommon.R
 		case "response.failed", "response.error":
 			if streamResp.Response != nil {
 				if oaiErr := streamResp.Response.GetOpenAIError(); oaiErr != nil && oaiErr.Type != "" {
-					streamErr = types.WithOpenAIError(*oaiErr, http.StatusInternalServerError)
+					streamErr = types.WithOpenAIError(*oaiErr, openAIErrorTypeToStatusCode(oaiErr.Type))
 					break
 				}
 			}
-			streamErr = types.NewOpenAIError(fmt.Errorf("responses stream error: %s", streamResp.Type), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			streamErr = types.NewOpenAIError(fmt.Errorf("responses stream error: %s", streamResp.Type), types.ErrorCodeBadResponse, resp.StatusCode)
 		}
 		if streamErr != nil || finalResponse != nil {
 			break
@@ -156,6 +157,15 @@ func convertResponsesResponseForClient(c *gin.Context, info *relaycommon.RelayIn
 	if usage == nil || usage.TotalTokens == 0 {
 		text := service.ExtractOutputTextFromResponses(response)
 		usage = service.ResponseText2Usage(c, text, info.UpstreamModelName, info.GetEstimatePromptTokens())
+		response.Usage = relayconvert.UsageFromChatUsage(usage)
+	}
+
+	// Apply the cache read amplification ratio so the caller sees the
+	// amplified value too. Mutate before ConvertResponse serializes usage.
+	// Skip OpenRouter because CalcOpenRouterCacheCreateTokens needs the
+	// original cache read token count for its reverse calculation.
+	if usage != nil && info.ChannelType != constant.ChannelTypeOpenRouter {
+		amplifyCachedTokensForResponse(info, usage)
 		response.Usage = relayconvert.UsageFromChatUsage(usage)
 	}
 
@@ -270,12 +280,12 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		if streamResp.Type == "response.error" || streamResp.Type == "response.failed" {
 			if streamResp.Response != nil {
 				if oaiErr := streamResp.Response.GetOpenAIError(); oaiErr != nil && oaiErr.Type != "" {
-					streamErr = types.WithOpenAIError(*oaiErr, http.StatusInternalServerError)
+					streamErr = types.WithOpenAIError(*oaiErr, openAIErrorTypeToStatusCode(oaiErr.Type))
 					sr.Stop(streamErr)
 					return
 				}
 			}
-			streamErr = types.NewOpenAIError(fmt.Errorf("responses stream error: %s", streamResp.Type), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			streamErr = types.NewOpenAIError(fmt.Errorf("responses stream error: %s", streamResp.Type), types.ErrorCodeBadResponse, resp.StatusCode)
 			sr.Stop(streamErr)
 			return
 		}
@@ -317,6 +327,13 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		}
 	}
 	if info.RelayFormat == types.RelayFormatOpenAI && info.ShouldIncludeUsage && usage != nil {
+		// Apply the cache read amplification ratio so the caller sees the
+		// amplified value too. GenerateFinalUsageResponse copies *usage by
+		// value, so mutate before the call. Skip OpenRouter — see
+		// amplifyCachedTokensForResponse docs.
+		if info.ChannelType != constant.ChannelTypeOpenRouter {
+			amplifyCachedTokensForResponse(info, usage)
+		}
 		if err := helper.ObjectData(c, helper.GenerateFinalUsageResponse(responseId, createAt, info.UpstreamModelName, *usage)); err != nil {
 			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 		}

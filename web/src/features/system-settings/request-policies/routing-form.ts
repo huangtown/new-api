@@ -3,9 +3,63 @@ import { z } from 'zod'
 
 import { parseHttpStatusCodeRules } from '@/lib/http-status-code-rules'
 
+import {
+  parseChannelRelayTimeouts,
+  serializeChannelRelayTimeouts,
+} from './channel-relay-timeouts'
+
 export function createRoutingPolicySchema(t: TFunction) {
   return z.object({
     RetryTimes: z.number().int().min(0).max(99),
+    ChannelRelayTimeouts: z
+      .array(
+        z.object({
+          channelId: z.number(),
+          timeoutSeconds: z.number(),
+        })
+      )
+      .superRefine((entries, context) => {
+        const seen = new Set<number>()
+        let hasInvalidChannelId = false
+        let hasInvalidTimeout = false
+        let hasDuplicateChannelId = false
+
+        for (const entry of entries) {
+          if (!Number.isInteger(entry.channelId) || entry.channelId <= 0) {
+            hasInvalidChannelId = true
+          }
+          if (
+            !Number.isInteger(entry.timeoutSeconds) ||
+            entry.timeoutSeconds <= 0 ||
+            entry.timeoutSeconds > 86400
+          ) {
+            hasInvalidTimeout = true
+          }
+          if (seen.has(entry.channelId)) {
+            hasDuplicateChannelId = true
+          }
+          seen.add(entry.channelId)
+        }
+
+        if (hasInvalidChannelId) {
+          context.addIssue({
+            code: 'custom',
+            message: t('Channel IDs must be positive integers'),
+          })
+        }
+        if (hasInvalidTimeout) {
+          context.addIssue({
+            code: 'custom',
+            message: t('Timeouts must be integers between 1 and 86400 seconds'),
+          })
+        }
+        if (hasDuplicateChannelId) {
+          context.addIssue({
+            code: 'custom',
+            message: t('Each channel ID can only be configured once'),
+          })
+        }
+      }),
     AutomaticRetryStatusCodes: z
       .string()
       .refine(
@@ -48,6 +102,9 @@ export function routingPolicyFormValues(
 ): RoutingPolicyFormValues {
   return {
     RetryTimes: Number(options.RetryTimes),
+    ChannelRelayTimeouts: parseChannelRelayTimeouts(
+      options.ChannelRelayTimeouts
+    ),
     AutomaticRetryStatusCodes: options.AutomaticRetryStatusCodes,
     channel_affinity_setting: {
       enabled: options['channel_affinity_setting.enabled'] === 'true',
@@ -71,6 +128,9 @@ export function routingPolicyOptions(
 ): Record<string, string> {
   return {
     RetryTimes: String(values.RetryTimes),
+    ChannelRelayTimeouts: serializeChannelRelayTimeouts(
+      values.ChannelRelayTimeouts
+    ),
     AutomaticRetryStatusCodes: values.AutomaticRetryStatusCodes,
     ...Object.fromEntries(
       Object.entries(values.channel_affinity_setting).map(([key, value]) => [

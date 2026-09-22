@@ -517,10 +517,32 @@ func keepUpstreamRedirectResponse(_ *http.Request, _ []*http.Request) error {
 	return http.ErrUseLastResponse
 }
 
-func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
+// GetRelayHttpClient returns the shared relay client configured for the
+// selected channel, including its proxy and channel-specific total timeout.
+// The returned timeout wrapper reuses the shared transport and never mutates
+// the cached base client.
+func GetRelayHttpClient(info *common.RelayInfo) (*http.Client, error) {
+	if info == nil {
+		return nil, errors.New("relay info is nil")
+	}
+
 	client, err := service.GetHttpClientWithProxySettings(info.ChannelSetting.Proxy, info.ChannelSetting)
 	if err != nil {
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+	}
+	if client == nil {
+		return nil, errors.New("relay HTTP client is not initialized")
+	}
+	if timeoutSeconds, ok := operation_setting.GetChannelRelayTimeout(info.ChannelId); ok {
+		client = service.WithHttpClientTimeout(client, time.Duration(timeoutSeconds)*time.Second)
+	}
+	return client, nil
+}
+
+func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
+	client, err := GetRelayHttpClient(info)
+	if err != nil {
+		return nil, err
 	}
 	// Clients are cached and shared across channels, so override redirect
 	// behavior on a shallow copy instead of mutating the cached client. This
@@ -537,6 +559,9 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 			policy.Shards,
 			policy.String(),
 		))
+	}
+	if timeoutSeconds, ok := operation_setting.GetChannelRelayTimeout(info.ChannelId); ok {
+		logger.LogDebug(c, "channel relay timeout seconds: %d", timeoutSeconds)
 	}
 
 	var stopPinger context.CancelFunc

@@ -33,6 +33,10 @@ import { SettingsPageFormActions } from '../components/settings-page-context'
 import { ChannelAffinitySection } from '../general/channel-affinity'
 import { safeNumberFieldProps } from '../utils/numeric-field'
 import { getPolicyConfig, type PolicyConfig } from './api'
+import {
+  parseChannelRelayTimeouts,
+  serializeChannelRelayTimeouts,
+} from './channel-relay-timeouts'
 import { policyLabel } from './policy-label'
 import { RetrySection } from './retry-section'
 import {
@@ -100,6 +104,14 @@ function RoutingPolicyEditor(props: { config: PolicyConfig }) {
         }
         if (key === 'AutomaticRetryStatusCodes') {
           return value !== parseHttpStatusCodeRules(previous).normalized
+        }
+        if (key === 'ChannelRelayTimeouts') {
+          // An unset option comes back as '', which serializes to '{}'.
+          // Compare the normalized form so an untouched form stays clean.
+          return (
+            value !==
+            serializeChannelRelayTimeouts(parseChannelRelayTimeouts(previous))
+          )
         }
         return value !== previous
       })

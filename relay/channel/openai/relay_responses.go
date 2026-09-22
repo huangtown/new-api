@@ -39,6 +39,16 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	info.ObserveResponseModel(responsesResponse.Model)
 	responseBody = rewriteSGLangResponsesCreatedAt(info, responseBody, "created_at", responsesResponse.CreatedAt)
 
+	// Apply the cache read amplification ratio to the in-memory usage so the
+	// caller sees the amplified value too. responseBody is the raw upstream
+	// bytes captured before usage was extracted, so we must re-marshal the
+	// mutated struct and use that for the wire write. amplifyCachedTokensForResponse
+	// is a no-op when CacheReadAmplificationRatio == 1.0. Skip OpenRouter.
+	if responsesResponse.Usage != nil && info.ChannelType != constant.ChannelTypeOpenRouter {
+		amplifyCachedTokensForResponse(info, responsesResponse.Usage)
+		responseBody, _ = common.Marshal(responsesResponse)
+	}
+
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 

@@ -31,6 +31,7 @@ import { Input } from '@/components/ui/input'
 
 import { SettingsCard } from '../components/settings-card'
 import { safeNumberFieldProps } from '../utils/numeric-field'
+import { ChannelRelayTimeoutsEditor } from './channel-relay-timeouts-editor'
 import type { RoutingPolicyFormValues } from './routing-form'
 
 export function RetrySection() {
@@ -75,6 +76,27 @@ export function RetrySection() {
               </FormControl>
               <FormDescription>
                 {t('2xx, 504 and 524 are always excluded.')}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name='ChannelRelayTimeouts'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('Per-channel relay timeout')}</FormLabel>
+              <FormControl>
+                <ChannelRelayTimeoutsEditor
+                  value={field.value}
+                  onChange={field.onChange}
+                />
+              </FormControl>
+              <FormDescription>
+                {t(
+                  'Overrides the global relay timeout for the listed channels. Leave empty to use the global value.'
+                )}
               </FormDescription>
               <FormMessage />
             </FormItem>

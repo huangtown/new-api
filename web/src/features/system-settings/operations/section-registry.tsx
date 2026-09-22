@@ -16,8 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { BillingErrorMaskSection, parseBillingErrorMaskConfig } from './billing-error-mask-section'
 import { SystemBehaviorSection } from '../general/system-behavior-section'
 import { EmailSettingsSection } from '../integrations/email-settings-section'
+import { FallbackSettingsSection } from './fallback-settings-section'
 import { MonitoringSettingsSection } from '../integrations/monitoring-settings-section'
 import { WorkerSettingsSection } from '../integrations/worker-settings-section'
 import { LogSettingsSection } from '../maintenance/log-settings-section'
@@ -55,6 +57,22 @@ const OPERATIONS_SECTIONS = [
             settings['perf_metrics_setting.bucket_time'] ?? 'hour',
           'perf_metrics_setting.retention_days':
             settings['perf_metrics_setting.retention_days'] ?? 0,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'fallback',
+    titleKey: 'Channel Fallback',
+    build: (settings: OperationsSettings) => (
+      <FallbackSettingsSection
+        defaultValues={{
+          FallbackEnabled: settings.FallbackEnabled,
+          FallbackChannelIDs: settings.FallbackChannelIDs,
+          FallbackStatusCodes: settings.FallbackStatusCodes,
+          FallbackTriggerKeywords: settings.FallbackTriggerKeywords,
+          GroupFallbackChannelIDs: settings.GroupFallbackChannelIDs,
+          GroupFallbackBillingRates: settings.GroupFallbackBillingRates,
         }}
       />
     ),
@@ -138,6 +156,20 @@ const OPERATIONS_SECTIONS = [
       <UpdateCheckerSection
         currentVersion={currentVersion}
         startTime={startTime}
+      />
+    ),
+  },
+  {
+    id: 'billing-error-mask',
+    titleKey: 'Billing Error Mask',
+    build: (settings: OperationsSettings) => (
+      <BillingErrorMaskSection
+        defaultValues={parseBillingErrorMaskConfig({
+          enabled: settings.BillingErrorMaskingEnabled,
+          keywords: settings.BillingErrorMaskingKeywords,
+          statusCode: settings.BillingErrorMaskingStatusCode,
+          message: settings.BillingErrorMaskingMessage,
+        })}
       />
     ),
   },

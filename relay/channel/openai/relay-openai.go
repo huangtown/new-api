@@ -121,7 +121,18 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	seenStreamToolCalls := make(map[string]struct{})
 	var streamFunctionCallNames []string
 
+	// streamErr is set when the upstream delivers an error chunk inside the
+	// SSE body (HTTP 200 already sent). Once set, the scanner is stopped and
+	// the caller returns it as a real error so the request is not billed and
+	// the pre-consumed quota is refunded. This mirrors ClaudeStreamHandler.
+	var streamErr *types.NewAPIError
+
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		if oaiErr := detectOpenAIStreamError(data); oaiErr != nil {
+			streamErr = types.WithOpenAIError(*oaiErr, openAIErrorTypeToStatusCode(oaiErr.Type))
+			sr.Stop(streamErr)
+			return
+		}
 		if lastStreamData != "" {
 			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
 				common.SysLog("error handling stream format: " + err.Error())
@@ -141,6 +152,10 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			}
 		}
 	})
+
+	if streamErr != nil {
+		return nil, streamErr
+	}
 
 	info.StreamStatus.RequireTerminal()
 

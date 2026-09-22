@@ -256,6 +256,10 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.PromptTokens = usage.PromptTokens
 	summary.CompletionTokens = usage.CompletionTokens
 	summary.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	// CacheTokens reflects the already-amplified value that the relay adaptor
+	// wrote into usage.PromptTokensDetails.CachedTokens before reaching this
+	// function. The amplification is done at the wire layer so that the
+	// caller also sees the amplified value.
 	summary.CacheTokens = usage.PromptTokensDetails.CachedTokens
 	summary.CacheCreationTokens = usage.PromptTokensDetails.CacheCreationTokensTotal()
 	summary.CacheCreationTokens5m = usage.ClaudeCacheCreation5mTokens

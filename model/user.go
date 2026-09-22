@@ -2,6 +2,7 @@ package model
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -111,6 +112,7 @@ type User struct {
 	CreatedAt            int64                      `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt          int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 	AuthVersion          int64                      `json:"-" gorm:"type:bigint;not null;default:1;column:auth_version"`
+	VisibleGroups        *string                    `json:"visible_groups,omitempty" gorm:"type:text;column:visible_groups"` // JSON array of channel groups this admin can view
 	AdminPermissions     map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
 }
 
@@ -194,6 +196,40 @@ func (user *User) SetSetting(setting dto.UserSetting) {
 		return
 	}
 	user.Setting = string(settingBytes)
+}
+
+// GetVisibleGroups returns the list of channel groups this user can view.
+// Returns nil for root users (can see all) and empty slice if VisibleGroups is not set.
+func (user *User) GetVisibleGroups() []string {
+	if user.Role >= common.RoleRootUser {
+		return nil // nil means no restriction
+	}
+	if user.VisibleGroups == nil || *user.VisibleGroups == "" {
+		return []string{} // empty means see all (backward compatible)
+	}
+	var groups []string
+	if err := json.Unmarshal([]byte(*user.VisibleGroups), &groups); err != nil {
+		common.SysLog("failed to unmarshal visible_groups for user " + strconv.Itoa(user.Id) + ": " + err.Error())
+		return []string{}
+	}
+	return groups
+}
+
+// CanViewGroup checks if the user can view channels in the specified group.
+func (user *User) CanViewGroup(group string) bool {
+	if user.Role >= common.RoleRootUser {
+		return true
+	}
+	visibleGroups := user.GetVisibleGroups()
+	if len(visibleGroups) == 0 {
+		return true // no restriction set, backward compatible
+	}
+	for _, g := range visibleGroups {
+		if g == group {
+			return true
+		}
+	}
+	return false
 }
 
 func UpdateUserSetting(userId int, setting dto.UserSetting) error {
@@ -1223,6 +1259,22 @@ func IsAdmin(userId int) bool {
 		return false
 	}
 	return user.Role >= common.RoleAdminUser
+}
+
+// IsRootUser 判断用户是否为超级管理员。
+// 中继路径只经过 TokenAuth，不会像 UserAuth 那样往 context 写入 role，
+// 需要按 user id 回查数据库。
+func IsRootUser(userId int) bool {
+	if userId == 0 {
+		return false
+	}
+	var user User
+	err := DB.Where("id = ?", userId).Select("role").Find(&user).Error
+	if err != nil {
+		common.SysLog("no such user " + err.Error())
+		return false
+	}
+	return user.Role >= common.RoleRootUser
 }
 
 func ValidateAccessToken(token string) (*User, error) {

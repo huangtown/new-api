@@ -49,6 +49,15 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 // SettleBilling 执行计费结算。如果 RelayInfo 上有 BillingSession 则通过 session 结算，
 // 否则回退到旧的 PostConsumeQuota 路径（兼容按次计费等场景）。
 func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuota int) error {
+	// Fallback rate is an absolute multiplier against standard price, so remove
+	// the original user-group ratio before applying it.
+	if relayInfo != nil && relayInfo.FallbackBillingRate > 0 && relayInfo.FallbackBillingRate != 1 {
+		groupRatio := relayInfo.PriceData.GroupRatioInfo.GroupRatio
+		if groupRatio <= 0 {
+			groupRatio = 1
+		}
+		actualQuota = int(float64(actualQuota) / groupRatio * relayInfo.FallbackBillingRate)
+	}
 	if relayInfo.Billing != nil {
 		preConsumed := relayInfo.Billing.GetPreConsumedQuota()
 		delta := actualQuota - preConsumed

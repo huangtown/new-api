@@ -74,6 +74,17 @@ func InitOptionMap() {
 	common.OptionMap["SMTPStartTLSEnabled"] = strconv.FormatBool(common.SMTPStartTLSEnabled)
 	common.OptionMap["SMTPInsecureSkipVerify"] = strconv.FormatBool(common.SMTPInsecureSkipVerify)
 	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
+	common.OptionMap["ErrorEmailNotifyEnabled"] = strconv.FormatBool(common.ErrorEmailNotifyEnabled)
+	common.OptionMap["ErrorEmailNotifyRecipients"] = common.ErrorEmailNotifyRecipients
+	common.OptionMap["PushPlusEnabled"] = strconv.FormatBool(common.PushPlusEnabled)
+	common.OptionMap["PushPlusToken"] = common.PushPlusToken
+	common.OptionMap["PushPlusTopic"] = common.PushPlusTopic
+	common.OptionMap["FallbackEnabled"] = strconv.FormatBool(common.FallbackEnabled)
+	common.OptionMap["FallbackChannelIDs"] = common.FallbackChannelIDs
+	common.OptionMap["FallbackStatusCodes"] = common.FallbackStatusCodes
+	common.OptionMap["FallbackTriggerKeywords"] = common.FallbackTriggerKeywords
+	common.OptionMap["GroupFallbackChannelIDs"] = common.GroupFallbackChannelIDs
+	common.OptionMap["GroupFallbackBillingRates"] = common.GroupFallbackBillingRates
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
@@ -153,8 +164,10 @@ func InitOptionMap() {
 	common.OptionMap["ModelPrice"] = ratio_setting.ModelPrice2JSONString()
 	common.OptionMap["CacheRatio"] = ratio_setting.CacheRatio2JSONString()
 	common.OptionMap["CreateCacheRatio"] = ratio_setting.CreateCacheRatio2JSONString()
+	common.OptionMap["CacheReadAmplificationRatio"] = strconv.FormatFloat(common.CacheReadAmplificationRatio, 'f', -1, 64)
 	common.OptionMap["GroupRatio"] = ratio_setting.GroupRatio2JSONString()
 	common.OptionMap["GroupGroupRatio"] = ratio_setting.GroupGroupRatio2JSONString()
+	common.OptionMap["GroupCacheReadAmplificationRatio"] = ratio_setting.GroupCacheReadAmplificationRatio2JSONString()
 	common.OptionMap["UserUsableGroups"] = setting.UserUsableGroups2JSONString()
 	common.OptionMap["CompletionRatio"] = ratio_setting.CompletionRatio2JSONString()
 	common.OptionMap["ImageRatio"] = ratio_setting.ImageRatio2JSONString()
@@ -165,6 +178,7 @@ func InitOptionMap() {
 	//common.OptionMap["ChatLink2"] = common.ChatLink2
 	common.OptionMap["QuotaPerUnit"] = strconv.FormatFloat(common.QuotaPerUnit, 'f', -1, 64)
 	common.OptionMap["RetryTimes"] = strconv.Itoa(common.RetryTimes)
+	common.OptionMap[operation_setting.ChannelRelayTimeoutsOptionKey] = operation_setting.ChannelRelayTimeouts2JSONString()
 	common.OptionMap["DataExportInterval"] = strconv.Itoa(common.DataExportInterval)
 	common.OptionMap["DataExportDefaultTime"] = common.DataExportDefaultTime
 	common.OptionMap["DefaultCollapseSidebar"] = strconv.FormatBool(common.DefaultCollapseSidebar)
@@ -185,6 +199,10 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableStatusCodes"] = operation_setting.AutomaticDisableStatusCodesToString()
 	common.OptionMap["AutomaticRetryStatusCodes"] = operation_setting.AutomaticRetryStatusCodesToString()
 	common.OptionMap["ExposeRatioEnabled"] = strconv.FormatBool(ratio_setting.IsExposeRatioEnabled())
+	common.OptionMap["BillingErrorMaskingEnabled"] = strconv.FormatBool(common.BillingErrorMaskingEnabled)
+	common.OptionMap["BillingErrorMaskingKeywords"] = common.BillingErrorMaskingKeywords
+	common.OptionMap["BillingErrorMaskingStatusCode"] = common.BillingErrorMaskingStatusCode
+	common.OptionMap["BillingErrorMaskingMessage"] = common.BillingErrorMaskingMessage
 
 	// 自动添加所有注册的模型配置
 	modelConfigs := config.GlobalConfig.ExportAllConfigs()
@@ -453,12 +471,20 @@ func updateOptionMap(key string, value string) (err error) {
 			common.SMTPInsecureSkipVerify = boolValue
 		case "SMTPForceAuthLogin":
 			common.SMTPForceAuthLogin = boolValue
+		case "ErrorEmailNotifyEnabled":
+			common.ErrorEmailNotifyEnabled = boolValue
+		case "PushPlusEnabled":
+			common.PushPlusEnabled = boolValue
+		case "FallbackEnabled":
+			common.FallbackEnabled = boolValue
 		case "WorkerAllowHttpImageRequestEnabled":
 			system_setting.WorkerAllowHttpImageRequestEnabled = boolValue
 		case "DefaultUseAutoGroup":
 			setting.DefaultUseAutoGroup = boolValue
 		case "ExposeRatioEnabled":
 			ratio_setting.SetExposeRatioEnabled(boolValue)
+		case "BillingErrorMaskingEnabled":
+			common.BillingErrorMaskingEnabled = boolValue
 		}
 	}
 	if key == setting.TaskPluginDisabledFactoryKeysKey {
@@ -478,6 +504,22 @@ func updateOptionMap(key string, value string) (err error) {
 		common.SMTPFrom = value
 	case "SMTPToken":
 		common.SMTPToken = value
+	case "ErrorEmailNotifyRecipients":
+		common.ErrorEmailNotifyRecipients = value
+	case "PushPlusToken":
+		common.PushPlusToken = value
+	case "PushPlusTopic":
+		common.PushPlusTopic = value
+	case "FallbackChannelIDs":
+		common.FallbackChannelIDs = value
+	case "FallbackStatusCodes":
+		common.FallbackStatusCodes = value
+	case "FallbackTriggerKeywords":
+		common.FallbackTriggerKeywords = value
+	case "GroupFallbackChannelIDs":
+		common.GroupFallbackChannelIDs = value
+	case "GroupFallbackBillingRates":
+		common.GroupFallbackBillingRates = value
 	case "ServerAddress":
 		system_setting.ServerAddress = value
 	case "TaskPublicAddress":
@@ -622,6 +664,8 @@ func updateOptionMap(key string, value string) (err error) {
 		err = setting.UpdateModelRequestRateLimitGroupByJSONString(value)
 	case "RetryTimes":
 		common.RetryTimes, _ = strconv.Atoi(value)
+	case operation_setting.ChannelRelayTimeoutsOptionKey:
+		err = operation_setting.UpdateChannelRelayTimeoutsByJSONString(value)
 	case "DataExportInterval":
 		common.DataExportInterval, _ = strconv.Atoi(value)
 	case "DataExportDefaultTime":
@@ -632,6 +676,8 @@ func updateOptionMap(key string, value string) (err error) {
 		err = ratio_setting.UpdateGroupRatioByJSONString(value)
 	case "GroupGroupRatio":
 		err = ratio_setting.UpdateGroupGroupRatioByJSONString(value)
+	case "GroupCacheReadAmplificationRatio":
+		err = ratio_setting.UpdateGroupCacheReadAmplificationRatioByJSONString(value)
 	case "UserUsableGroups":
 		err = setting.UpdateUserUsableGroupsByJSONString(value)
 	case "CompletionRatio":
@@ -642,6 +688,10 @@ func updateOptionMap(key string, value string) (err error) {
 		err = ratio_setting.UpdateCacheRatioByJSONString(value)
 	case "CreateCacheRatio":
 		err = ratio_setting.UpdateCreateCacheRatioByJSONString(value)
+	case "CacheReadAmplificationRatio":
+		if v, parseErr := strconv.ParseFloat(value, 64); parseErr == nil && v > 0 {
+			common.CacheReadAmplificationRatio = v
+		}
 	case "ImageRatio":
 		err = ratio_setting.UpdateImageRatioByJSONString(value)
 	case "AudioRatio":
@@ -666,6 +716,12 @@ func updateOptionMap(key string, value string) (err error) {
 		err = operation_setting.AutomaticDisableStatusCodesFromString(value)
 	case "AutomaticRetryStatusCodes":
 		err = operation_setting.AutomaticRetryStatusCodesFromString(value)
+	case "BillingErrorMaskingKeywords":
+		common.BillingErrorMaskingKeywords = value
+	case "BillingErrorMaskingStatusCode":
+		common.BillingErrorMaskingStatusCode = value
+	case "BillingErrorMaskingMessage":
+		common.BillingErrorMaskingMessage = value
 	case "StreamCacheQueueLength":
 		setting.StreamCacheQueueLength, _ = strconv.Atoi(value)
 	case "PayMethods":

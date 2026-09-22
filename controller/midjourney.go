@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/authz"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
@@ -279,6 +280,12 @@ func checkMjTaskNeedUpdate(oldTask *model.Midjourney, newTask dto.MidjourneyDto)
 }
 
 func GetAllMidjourney(c *gin.Context) {
+	userID := c.GetInt("id")
+	userRole := c.GetInt("role")
+	if !authz.Can(userID, userRole, authz.LogReadAll) {
+		GetUserMidjourney(c)
+		return
+	}
 	pageInfo := common.GetPageQuery(c)
 
 	// 解析其他查询参数

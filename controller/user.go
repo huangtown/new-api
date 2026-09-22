@@ -335,6 +335,9 @@ func Register(c *gin.Context) {
 }
 
 func GetAllUsers(c *gin.Context) {
+	if !canViewUsers(c) {
+		return
+	}
 	pageInfo := common.GetPageQuery(c)
 	sortOptions := model.NewUserSortOptions(c.Query("sort_by"), c.Query("sort_order"))
 	users, total, err := model.GetAllUsers(pageInfo, sortOptions)
@@ -351,6 +354,9 @@ func GetAllUsers(c *gin.Context) {
 }
 
 func SearchUsers(c *gin.Context) {
+	if !canViewUsers(c) {
+		return
+	}
 	keyword := c.Query("keyword")
 	group := c.Query("group")
 	var role *int
@@ -384,6 +390,9 @@ func canManageTargetRole(myRole int, targetRole int) bool {
 }
 
 func GetUser(c *gin.Context) {
+	if !canViewUsers(c) {
+		return
+	}
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		common.ApiError(c, err)
@@ -406,6 +415,17 @@ func GetUser(c *gin.Context) {
 		"data":    user,
 	})
 	return
+}
+
+// canViewUsers 检查当前用户是否有"查看用户"权限
+func canViewUsers(c *gin.Context) bool {
+	userID := c.GetInt("id")
+	userRole := c.GetInt("role")
+	if !authz.Can(userID, userRole, authz.UserRead) {
+		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
+		return false
+	}
+	return true
 }
 
 type TransferAffQuotaRequest struct {
@@ -1034,7 +1054,7 @@ func updateAdminPermissionsForUserInTx(c *gin.Context, tx *gorm.DB, userID int, 
 		return false, nil
 	}
 	if c.GetInt("role") != common.RoleRootUser {
-		return false, fmt.Errorf("only root can update admin permissions")
+		return false, nil
 	}
 	if userRole < common.RoleAdminUser {
 		return true, authz.ClearUserAuthorizationInTx(tx, userID)

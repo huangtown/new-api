@@ -96,6 +96,28 @@ var LogConsumeEnabled = true
 var TLSInsecureSkipVerify bool
 var InsecureTLSConfig = &tls.Config{InsecureSkipVerify: true}
 
+var ErrorEmailNotifyEnabled = false
+var ErrorEmailNotifyRecipients = ""
+
+var PushPlusEnabled = false
+var PushPlusToken = ""
+var PushPlusTopic = ""
+var PushPlusChannel = "wechat"
+
+var CacheReadAmplificationRatio float64 = 1.0
+
+var FallbackEnabled = false
+var FallbackChannelIDs = ""
+var FallbackStatusCodes = "400"
+var FallbackTriggerKeywords = "too long,context length,maximum context,prompt too long,token limit,context_length_exceeded,reduce the length"
+var GroupFallbackChannelIDs = ""   // JSON map: {"default":"10,11","vip":"20,21"}
+var GroupFallbackBillingRates = "" // JSON map: {"default":[{"channel":"10","rate":1.5}]}
+
+var BillingErrorMaskingEnabled = true
+var BillingErrorMaskingKeywords = "RMB,额度,余额,充值"
+var BillingErrorMaskingStatusCode = "524"
+var BillingErrorMaskingMessage = ""
+
 var SMTPServer = ""
 var SMTPPort = 587
 var SMTPSSLEnabled = false
@@ -105,6 +127,7 @@ var SMTPForceAuthLogin = false
 var SMTPAccount = ""
 var SMTPFrom = ""
 var SMTPToken = ""
+var SMTPTimeout = 30 // SMTP connection and operation timeout, seconds
 
 var GitHubClientId = ""
 var GitHubClientSecret = ""

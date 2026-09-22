@@ -16,7 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
-	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -40,11 +40,15 @@ func getAwsErrorStatusCode(err error) int {
 	return http.StatusInternalServerError
 }
 
-func newAwsInvokeContext(parent context.Context) (context.Context, context.CancelFunc) {
-	if common.RelayTimeout <= 0 {
+func newAwsInvokeContext(parent context.Context, channelID int) (context.Context, context.CancelFunc) {
+	timeoutSeconds := common.RelayTimeout
+	if channelTimeoutSeconds, ok := operation_setting.GetChannelRelayTimeout(channelID); ok {
+		timeoutSeconds = channelTimeoutSeconds
+	}
+	if timeoutSeconds <= 0 {
 		return context.WithCancel(parent)
 	}
-	return context.WithTimeout(parent, time.Duration(common.RelayTimeout)*time.Second)
+	return context.WithTimeout(parent, time.Duration(timeoutSeconds)*time.Second)
 }
 
 func newAwsInvokeError(requestContext context.Context, err error, operation string) *types.NewAPIError {
@@ -60,10 +64,10 @@ func newAwsInvokeError(requestContext context.Context, err error, operation stri
 	)
 }
 
-func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.Client, error) {
-	httpClient, err := service.GetHttpClientWithProxySettings(info.ChannelSetting.Proxy, info.ChannelSetting)
+func newAwsClient(info *relaycommon.RelayInfo) (*bedrockruntime.Client, error) {
+	httpClient, err := channel.GetRelayHttpClient(info)
 	if err != nil {
-		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+		return nil, err
 	}
 
 	awsSecret := strings.Split(info.ApiKey, "|")
@@ -94,7 +98,7 @@ func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.
 }
 
 func doAwsClientRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor, requestBody io.Reader) (any, error) {
-	awsCli, err := newAwsClient(c, info)
+	awsCli, err := newAwsClient(info)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeChannelAwsClientError)
 	}
@@ -229,7 +233,7 @@ func getAwsModelID(requestModel string) string {
 func awsHandler(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (*types.NewAPIError, *dto.Usage) {
 
 	requestContext := c.Request.Context()
-	ctx, cancel := newAwsInvokeContext(requestContext)
+	ctx, cancel := newAwsInvokeContext(requestContext, info.ChannelId)
 	defer cancel()
 
 	awsResp, err := a.AwsClient.InvokeModel(ctx, a.AwsReq.(*bedrockruntime.InvokeModelInput))
@@ -259,7 +263,7 @@ func awsHandler(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (*types
 
 func awsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (*types.NewAPIError, *dto.Usage) {
 	requestContext := c.Request.Context()
-	ctx, cancel := newAwsInvokeContext(requestContext)
+	ctx, cancel := newAwsInvokeContext(requestContext, info.ChannelId)
 	defer cancel()
 
 	awsResp, err := a.AwsClient.InvokeModelWithResponseStream(ctx, a.AwsReq.(*bedrockruntime.InvokeModelWithResponseStreamInput))
@@ -309,6 +313,18 @@ streamLoop:
 	}
 
 	_ = stream.Close()
+
+	// Events() closes on both normal completion and transport failure. The
+	// only way to tell them apart is stream.Err(); without this check a
+	// Bedrock-side abort mid-stream looks like a clean finish.
+	if streamErr := stream.Err(); streamErr != nil {
+		return types.NewOpenAIError(errors.Wrap(streamErr, "InvokeModelWithResponseStream"), types.ErrorCodeAwsInvokeError, getAwsErrorStatusCode(streamErr)), nil
+	}
+
+	if truncErr := claude.CheckClaudeStreamTruncated(info, claudeInfo); truncErr != nil {
+		return truncErr, nil
+	}
+
 	claude.HandleStreamFinalResponse(c, info, claudeInfo)
 	return nil, claudeInfo.Usage
 }
@@ -317,7 +333,7 @@ streamLoop:
 func handleNovaRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (*types.NewAPIError, *dto.Usage) {
 
 	requestContext := c.Request.Context()
-	ctx, cancel := newAwsInvokeContext(requestContext)
+	ctx, cancel := newAwsInvokeContext(requestContext, info.ChannelId)
 	defer cancel()
 
 	awsResp, err := a.AwsClient.InvokeModel(ctx, a.AwsReq.(*bedrockruntime.InvokeModelInput))

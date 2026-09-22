@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -66,6 +67,15 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		return
 	}
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.MaskSensitiveErrorWithStatusCode())))
+	if common.ErrorEmailNotifyEnabled && strings.TrimSpace(common.ErrorEmailNotifyRecipients) != "" {
+		retryChain := BuildRetryChainDetail(c.GetStringSlice("use_channel"))
+		detail := fmt.Sprintf("请求ID: %s\n请求: %s\n渠道: #%d %s\n状态码: %d\n消息: %s%s",
+			c.GetString(common.RequestIdKey), c.Request.URL.String(), channelError.ChannelId, channelError.ChannelName,
+			err.StatusCode, err.Error(), retryChain)
+		c.Set("error_email_notified", true)
+		subject := fmt.Sprintf("Relay Error (channel=%d, status=%d)", channelError.ChannelId, err.StatusCode)
+		gopool.Go(func() { NotifyError(subject, detail) })
+	}
 	if ShouldDisableChannel(err) && channelError.AutoBan {
 		reason := err.MaskSensitiveErrorWithStatusCode()
 		gopool.Go(func() {
@@ -94,6 +104,11 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			startTime = time.Now()
 		}
 		useTimeSeconds := int(time.Since(startTime).Seconds())
-		model.RecordErrorLog(c, userId, channelError.ChannelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
+		// 错误日志是独立于 HTTP 响应的第二个出口：用户可通过 /api/log/self
+		// 读回自己的日志行，且 formatUserLogs 不删除 Content。这里不掩盖的话，
+		// 用户在响应里看到掩盖文案，去日志页却能看到上游计费原文。
+		logContent := ResolveBillingMaskPolicy(userId).
+			MaskLogContent(err.MaskSensitiveErrorWithStatusCode())
+		model.RecordErrorLog(c, userId, channelError.ChannelId, modelName, tokenName, logContent, tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 	}
 }

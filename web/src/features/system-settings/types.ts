@@ -362,6 +362,10 @@ export type OperationsSettings = {
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
   QuotaRemindThreshold: string
+  BillingErrorMaskingEnabled: boolean
+  BillingErrorMaskingKeywords: string
+  BillingErrorMaskingStatusCode: string
+  BillingErrorMaskingMessage: string
   SMTPServer: string
   SMTPPort: string
   SMTPAccount: string
@@ -371,6 +375,12 @@ export type OperationsSettings = {
   SMTPStartTLSEnabled: boolean
   SMTPInsecureSkipVerify: boolean
   SMTPForceAuthLogin: boolean
+  FallbackEnabled: boolean
+  FallbackChannelIDs: string
+  FallbackStatusCodes: string
+  FallbackTriggerKeywords: string
+  GroupFallbackChannelIDs: string
+  GroupFallbackBillingRates: string
   WorkerUrl: string
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean

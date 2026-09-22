@@ -466,6 +466,11 @@ export function ChannelMutateDrawer({
   }
   const channelId = currentRow?.id ?? null
   const sensitiveLocked = isEditing && !canEditSensitive
+  const [isIonetChannel, setIsIonetChannel] = useState(false)
+  const [ionetDeploymentId, setIonetDeploymentId] = useState<string | null>(
+    null
+  )
+  const isIonetLocked = isIonetChannel && isEditing
   const [providerTarget, setProviderTarget] =
     useState<ChannelProviderTarget | null>(null)
   const [choosingProvider, setChoosingProvider] = useState(true)
@@ -1068,8 +1073,29 @@ export function ChannelMutateDrawer({
       initialModelMappingRef.current = channelData.data.model_mapping || ''
       initialStatusCodeMappingRef.current =
         channelData.data.status_code_mapping || ''
+
+      // Detect IO.NET managed channels
+      let parsedIonet: { source?: string; deployment_id?: string } | null = null
+      if (channelData.data.other_info) {
+        try {
+          const maybeMeta = JSON.parse(channelData.data.other_info)
+          if (
+            maybeMeta &&
+            typeof maybeMeta === 'object' &&
+            maybeMeta.source === 'ionet'
+          ) {
+            parsedIonet = maybeMeta
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+      setIsIonetChannel(!!parsedIonet)
+      setIonetDeploymentId(parsedIonet?.deployment_id ?? null)
     } else if (!isEditing) {
       form.reset(CHANNEL_FORM_DEFAULT_VALUES)
+      setIsIonetChannel(false)
+      setIonetDeploymentId(null)
       initialModelsRef.current = []
       initialModelMappingRef.current = ''
       initialStatusCodeMappingRef.current = ''
@@ -2554,6 +2580,33 @@ export function ChannelMutateDrawer({
   const basicSection = (
     <div className='scroll-mt-4'>
       <ChannelBasicSection>
+        {isIonetLocked && (
+          <Alert className='mb-2'>
+            <AlertDescription className='flex flex-wrap items-center justify-between gap-2'>
+              <span>
+                {t(
+                  'This channel is managed by IO.NET. Type, key, and base URL are locked.'
+                )}
+              </span>
+              {ionetDeploymentId && (
+                <Button
+                  variant='outline'
+                  size='sm'
+                  type='button'
+                  onClick={() => {
+                    window.open(
+                      `/console/deployment?deployment_id=${ionetDeploymentId}`,
+                      '_blank',
+                      'noopener'
+                    )
+                  }}
+                >
+                  {t('View Deployment')}
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
         <div className='grid gap-4'>
           <FormField
             control={form.control}
@@ -2568,6 +2621,27 @@ export function ChannelMutateDrawer({
               </FormItem>
             )}
           />
+
+          {currentUser?.role === ROLE.SUPER_ADMIN && (
+            <FormField
+              control={form.control}
+              name='alias'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Alias')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t(
+                        'Set alias — super admins will see this instead of the real name'
+                      )}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </div>
 
         {!isEditing && (
@@ -3537,7 +3611,7 @@ export function ChannelMutateDrawer({
 
         <div className='border-border/60 bg-muted/10 rounded-lg border p-4'>
           <fieldset
-            disabled={sensitiveLocked}
+            disabled={sensitiveLocked || isIonetLocked}
             className='space-y-4 disabled:opacity-60'
           >
             {/* Azure (type 3) */}
@@ -4748,6 +4822,7 @@ export function ChannelMutateDrawer({
                         isSubmitting ||
                         (!showProviderPicker &&
                           (!canEditSensitive ||
+                            isIonetLocked ||
                             (isEditing && !channelData?.data)))
                       }
                       onClick={() => setChoosingProvider(!showProviderPicker)}

@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 
@@ -111,9 +112,9 @@ func exchangeJwtForAccessToken(signedJWT string, info *relaycommon.RelayInfo) (s
 	data.Set("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer")
 	data.Set("assertion", signedJWT)
 
-	client, err := service.GetHttpClientWithProxySettings(info.ChannelSetting.Proxy, info.ChannelSetting)
+	client, err := channel.GetRelayHttpClient(info)
 	if err != nil {
-		return "", fmt.Errorf("new proxy http client failed: %w", err)
+		return "", err
 	}
 
 	resp, err := client.PostForm(authURL, data)
