@@ -46,18 +46,34 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 // SettleBilling — 后结算辅助函数
 // ---------------------------------------------------------------------------
 
+// ApplyFallbackBillingRate rescales a quota for a request served by a fallback
+// channel. The fallback rate is an absolute multiplier against standard price,
+// so the original user-group ratio is divided out before it is applied.
+//
+// Callers must apply this BEFORE recording the consume log and the user/channel
+// used_quota counters, and pass the result to SettleBilling. Rescaling only
+// inside SettleBilling would debit the wallet the adjusted amount while the log
+// and both counters kept the unadjusted one, leaving the books unreconcilable
+// and the user unable to see why their balance dropped further than the log
+// says.
+func ApplyFallbackBillingRate(relayInfo *relaycommon.RelayInfo, quota int) int {
+	if relayInfo == nil || relayInfo.FallbackBillingRate <= 0 || relayInfo.FallbackBillingRate == 1 {
+		return quota
+	}
+	groupRatio := relayInfo.PriceData.GroupRatioInfo.GroupRatio
+	if groupRatio <= 0 {
+		groupRatio = 1
+	}
+	return int(float64(quota) / groupRatio * relayInfo.FallbackBillingRate)
+}
+
 // SettleBilling 执行计费结算。如果 RelayInfo 上有 BillingSession 则通过 session 结算，
 // 否则回退到旧的 PostConsumeQuota 路径（兼容按次计费等场景）。
+//
+// actualQuota must already have gone through ApplyFallbackBillingRate; this
+// function no longer rescales, so that the amount settled is exactly the amount
+// its caller logged.
 func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuota int) error {
-	// Fallback rate is an absolute multiplier against standard price, so remove
-	// the original user-group ratio before applying it.
-	if relayInfo != nil && relayInfo.FallbackBillingRate > 0 && relayInfo.FallbackBillingRate != 1 {
-		groupRatio := relayInfo.PriceData.GroupRatioInfo.GroupRatio
-		if groupRatio <= 0 {
-			groupRatio = 1
-		}
-		actualQuota = int(float64(actualQuota) / groupRatio * relayInfo.FallbackBillingRate)
-	}
 	if relayInfo.Billing != nil {
 		preConsumed := relayInfo.Billing.GetPreConsumedQuota()
 		delta := actualQuota - preConsumed

@@ -121,7 +121,11 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		return types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
-		return types.WithClaudeError(*claudeError, claudeErrorTypeToStatusCode(claudeError.Type))
+		// The upstream already answered 200 and then reported this inside the
+		// SSE body, so the mapped status is a client-facing hint, not proof
+		// that the channel's credentials are bad. authentication_error maps to
+		// 401, which is exactly the default auto-disable range.
+		return types.WithClaudeError(*claudeError, claudeErrorTypeToStatusCode(claudeError.Type), types.ErrOptionWithSkipAutoDisable())
 	}
 	if claudeResponse.Type == "message_start" && claudeResponse.Message != nil {
 		info.ObserveResponseModel(claudeResponse.Message.Model)

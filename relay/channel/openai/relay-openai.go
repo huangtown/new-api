@@ -129,7 +129,12 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		if oaiErr := detectOpenAIStreamError(data); oaiErr != nil {
-			streamErr = types.WithOpenAIError(*oaiErr, openAIErrorTypeToStatusCode(oaiErr.Type))
+			// HTTP 200 was already sent; this error arrived as an SSE chunk,
+			// so its mapped status describes the upstream's semantic error
+			// type rather than a rejected request. authentication_error maps
+			// to 401, the default auto-disable range, and a transient blip
+			// must not pull the channel out of rotation.
+			streamErr = types.WithOpenAIError(*oaiErr, openAIErrorTypeToStatusCode(oaiErr.Type), types.ErrOptionWithSkipAutoDisable())
 			sr.Stop(streamErr)
 			return
 		}

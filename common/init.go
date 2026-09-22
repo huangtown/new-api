@@ -113,6 +113,11 @@ func InitEnv() {
 		}
 	}
 
+	BillingErrorMaskingEnabled = GetEnvOrDefaultBool("BILLING_ERROR_MASKING_ENABLED", false)
+	BillingErrorMaskingKeywords = GetEnvOrDefaultString("BILLING_ERROR_MASKING_KEYWORDS", "RMB,额度,余额,充值")
+	BillingErrorMaskingStatusCode = GetEnvOrDefaultString("BILLING_ERROR_MASKING_STATUS_CODE", "524")
+	BillingErrorMaskingMessage = GetEnvOrDefaultString("BILLING_ERROR_MASKING_MESSAGE", "")
+
 	FallbackEnabled = GetEnvOrDefaultBool("FALLBACK_ENABLED", false)
 	FallbackChannelIDs = GetEnvOrDefaultString("FALLBACK_CHANNEL_IDS", "")
 	FallbackStatusCodes = GetEnvOrDefaultString("FALLBACK_STATUS_CODES", "400")

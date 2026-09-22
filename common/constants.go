@@ -113,7 +113,12 @@ var FallbackTriggerKeywords = "too long,context length,maximum context,prompt to
 var GroupFallbackChannelIDs = ""   // JSON map: {"default":"10,11","vip":"20,21"}
 var GroupFallbackBillingRates = "" // JSON map: {"default":[{"channel":"10","rate":1.5}]}
 
-var BillingErrorMaskingEnabled = true
+// Off by default: enabling it rewrites every non-root user's quota/balance
+// error into a fixed message and rewrites the error log content too, which
+// breaks client retry logic and support workflows. An upgrade must not switch
+// that on behind the operator's back — it matches the frontend default and
+// every sibling notification/fallback feature, which also default to false.
+var BillingErrorMaskingEnabled = false
 var BillingErrorMaskingKeywords = "RMB,额度,余额,充值"
 var BillingErrorMaskingStatusCode = "524"
 var BillingErrorMaskingMessage = ""

@@ -92,10 +92,15 @@ type NewAPIError struct {
 	RelayError     any
 	skipRetry      bool
 	recordErrorLog *bool
-	errorType      ErrorType
-	errorCode      ErrorCode
-	StatusCode     int
-	Metadata       json.RawMessage
+	// skipAutoDisable marks an error that must not auto-disable the channel.
+	// An in-stream error carries the upstream's semantic error type, not the
+	// HTTP status of a rejected request, so its mapped status code is not
+	// evidence that the channel's credentials are bad.
+	skipAutoDisable bool
+	errorType       ErrorType
+	errorCode       ErrorCode
+	StatusCode      int
+	Metadata        json.RawMessage
 	// billingMasked 标记该报错已被计费掩盖替换。掩盖文案由管理员配置，
 	// 是固定字符串而非上游内容，不应再过 MaskSensitiveInfo——否则
 	// "Contact support@acme.com" 会被打码成 "support@***.com"。
@@ -484,6 +489,24 @@ func ErrOptionWithSkipRetry() NewAPIErrorOptions {
 	return func(e *NewAPIError) {
 		e.skipRetry = true
 	}
+}
+
+// ErrOptionWithSkipAutoDisable marks an error that must never trigger channel
+// auto-disable. It exists for in-stream errors: the upstream already answered
+// HTTP 200 and then reported a semantic error type inside the SSE body, so
+// mapping e.g. authentication_error to 401 gives the client a useful status
+// without implying the channel key is dead. Without this, a single transient
+// in-stream authentication_error lands exactly on the default auto-disable
+// range (401-401) and removes the channel from rotation.
+func ErrOptionWithSkipAutoDisable() NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		e.skipAutoDisable = true
+	}
+}
+
+// IsSkipAutoDisableError reports whether the error opted out of auto-disable.
+func IsSkipAutoDisableError(e *NewAPIError) bool {
+	return e != nil && e.skipAutoDisable
 }
 
 func ErrOptionWithNoRecordErrorLog() NewAPIErrorOptions {

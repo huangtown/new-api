@@ -213,6 +213,11 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		logContent = fmt.Sprintf("模型价格 %.2f，分组倍率 %.2f", modelPrice, groupRatio)
 	}
 
+	// A fallback channel prices against standard rate, so rescale before the
+	// counters and the consume log read quota. Settling a different number
+	// than we record would desynchronise the wallet from the books.
+	quota = ApplyFallbackBillingRate(relayInfo, quota)
+
 	// record all the consume log even if quota is 0
 	if totalTokens == 0 {
 		// in this case, must be some error happened
@@ -345,6 +350,11 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	} else {
 		logContent = fmt.Sprintf("模型价格 %.2f，分组倍率 %.2f", modelPrice, groupRatio)
 	}
+
+	// A fallback channel prices against standard rate, so rescale before the
+	// counters and the consume log read quota. Settling a different number
+	// than we record would desynchronise the wallet from the books.
+	quota = ApplyFallbackBillingRate(relayInfo, quota)
 
 	// record all the consume log even if quota is 0
 	if totalTokens == 0 && !fixedPriceBilling {

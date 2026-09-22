@@ -67,6 +67,12 @@ func ShouldDisableChannel(err *types.NewAPIError) bool {
 	if types.IsSkipRetryError(err) {
 		return false
 	}
+	// An in-stream error's status code is derived from the upstream's semantic
+	// error type, not from a rejected HTTP request, so it is not evidence that
+	// this channel's credentials are bad.
+	if types.IsSkipAutoDisableError(err) {
+		return false
+	}
 	if operation_setting.ShouldDisableByStatusCode(err.StatusCode) {
 		return true
 	}
