@@ -697,6 +697,11 @@ func UpdateUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
 		return
 	}
+	// Only root may set the channel group visibility whitelist. Otherwise a
+	// restricted admin could edit their own record and widen their access.
+	if myRole < common.RoleRootUser {
+		updatedUser.VisibleGroups = nil
+	}
 	updatePassword := updatedUser.Password != ""
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {

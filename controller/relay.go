@@ -357,8 +357,17 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 		service.RequestPolicy(c).BeginAttempt(channel, info.UsingGroup)
 		return channel, nil
 	}
+	// Prefer a channel the request has not tried yet, but do not let that
+	// preference turn a retryable failure into a hard one: when every
+	// candidate has already been attempted (a single-channel group being the
+	// common case), fall back to selecting without the exclusion so a
+	// transient upstream 5xx still gets its retry.
 	retryParam.ExcludedChannelIDs = usedChannelIDs
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
+	if err == nil && channel == nil && len(usedChannelIDs) > 0 {
+		retryParam.ExcludedChannelIDs = nil
+		channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(retryParam)
+	}
 	if err != nil {
 		return nil, types.NewError(fmt.Errorf("获取分组 %s 下模型 %s 的可用渠道失败（retry）: %s", selectGroup, info.OriginModelName, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}

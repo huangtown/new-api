@@ -27,6 +27,7 @@ function PricingFixture() {
   const [settings, setSettings] = useState<Record<string, string>>({
     GroupRatio: '{"default":1}',
     TopupGroupRatio: '{}',
+    GroupCacheReadAmplificationRatio: '{}',
     UserUsableGroups: '{}',
   })
   return (
@@ -37,6 +38,9 @@ function PricingFixture() {
         defaultUseAutoGroupField={null}
         groupRatio={settings.GroupRatio}
         topupGroupRatio={settings.TopupGroupRatio}
+        groupCacheReadAmplificationRatio={
+          settings.GroupCacheReadAmplificationRatio
+        }
         userUsableGroups={settings.UserUsableGroups}
         groupGroupRatio='{}'
         autoGroups='[]'
@@ -87,3 +91,29 @@ test.each([
     expect(input.validity.rangeUnderflow).toBe(true)
   }
 )
+
+// The cache read multiplier is optional per group: the backend rejects ratios
+// <= 0 and reads an absent entry as "fall back to the global value", so a
+// blank cell must be omitted from the payload rather than written as 0.
+test('cache read multiplier round-trips and omits blank cells', async () => {
+  const user = userEvent.setup()
+  render(<PricingFixture />)
+  const row = screen.getByDisplayValue('default').closest('tr')
+  assert(row)
+  const input = within(row).getAllByRole('spinbutton')[2] as HTMLInputElement
+
+  await user.type(input, '2.5')
+  await user.tab()
+  const saved = JSON.parse(
+    screen.getByRole('status', { name: 'Saved ratios' }).textContent ?? '{}'
+  )
+  expect(JSON.parse(saved.GroupCacheReadAmplificationRatio)).toEqual({
+    default: 2.5,
+  })
+
+  await user.clear(input)
+  const cleared = JSON.parse(
+    screen.getByRole('status', { name: 'Saved ratios' }).textContent ?? '{}'
+  )
+  expect(JSON.parse(cleared.GroupCacheReadAmplificationRatio)).toEqual({})
+})

@@ -27,10 +27,10 @@ func TestResolveCacheReadAmplificationRatio(t *testing.T) {
 	require.NoError(t, UpdateGroupCacheReadAmplificationRatioByJSONString(`{"default":1,"vip":1.5,"svip":2}`))
 
 	cases := []struct {
-		name    string
-		group   string
-		global  float64
-		want    float64
+		name   string
+		group  string
+		global float64
+		want   float64
 	}{
 		{"per-group vip wins over global 1.0", "vip", 1.0, 1.5},
 		{"per-group svip wins over global 2.5", "svip", 2.5, 2.0},

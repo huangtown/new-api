@@ -37,6 +37,7 @@ import { GroupRatioForm } from '../group-ratio-form'
 const defaults = {
   GroupRatio: '{"default":1,"vip":0.8}',
   TopupGroupRatio: '{"vip":1.2}',
+  GroupCacheReadAmplificationRatio: '{}',
   UserUsableGroups: '{"default":"Standard access","vip":"Premium access"}',
   GroupGroupRatio: '{}',
   AutoGroups: '["default","vip"]',
@@ -48,6 +49,7 @@ const defaults = {
 const schema = z.object({
   GroupRatio: z.string(),
   TopupGroupRatio: z.string(),
+  GroupCacheReadAmplificationRatio: z.string(),
   UserUsableGroups: z.string(),
   GroupGroupRatio: z.string(),
   AutoGroups: z.string(),

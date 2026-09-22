@@ -164,7 +164,7 @@ func convertResponsesResponseForClient(c *gin.Context, info *relaycommon.RelayIn
 	// amplified value too. Mutate before ConvertResponse serializes usage.
 	// Skip OpenRouter because CalcOpenRouterCacheCreateTokens needs the
 	// original cache read token count for its reverse calculation.
-	if usage != nil && info.ChannelType != constant.ChannelTypeOpenRouter {
+	if usage != nil && info.GetChannelType() != constant.ChannelTypeOpenRouter {
 		amplifyCachedTokensForResponse(info, usage)
 		response.Usage = relayconvert.UsageFromChatUsage(usage)
 	}
@@ -331,7 +331,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		// amplified value too. GenerateFinalUsageResponse copies *usage by
 		// value, so mutate before the call. Skip OpenRouter — see
 		// amplifyCachedTokensForResponse docs.
-		if info.ChannelType != constant.ChannelTypeOpenRouter {
+		if info.GetChannelType() != constant.ChannelTypeOpenRouter {
 			amplifyCachedTokensForResponse(info, usage)
 		}
 		if err := helper.ObjectData(c, helper.GenerateFinalUsageResponse(responseId, createAt, info.UpstreamModelName, *usage)); err != nil {

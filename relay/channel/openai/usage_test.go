@@ -6,8 +6,8 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/relaykit/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/stretchr/testify/require"
@@ -30,10 +30,10 @@ func TestAmplifyCachedTokensForResponse(t *testing.T) {
 	common.CacheReadAmplificationRatio = 1.0 // baseline so per-group wins when configured
 
 	cases := []struct {
-		name     string
-		ratio    float64
-		input    int
-		want     int
+		name       string
+		ratio      float64
+		input      int
+		want       int
 		skipMutate bool // when input is 0 we should remain 0 regardless of ratio
 	}{
 		{name: "ratio 1.0 is identity", ratio: 1.0, input: 100, want: 100},
@@ -78,10 +78,10 @@ func TestAmplifyCachedTokensForResponsePerGroup(t *testing.T) {
 	common.CacheReadAmplificationRatio = 1.0
 
 	cases := []struct {
-		name    string
-		group   string
-		global  float64
-		want    int
+		name   string
+		group  string
+		global float64
+		want   int
 	}{
 		{name: "vip per-group 1.5 wins over global 1.0", group: "vip", global: 1.0, want: 150},
 		{name: "svip per-group 2.0 wins over global 1.5", group: "svip", global: 1.5, want: 200},
@@ -133,7 +133,7 @@ func TestApplyUsagePostProcessingSkipsOpenRouter(t *testing.T) {
 			PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 100},
 		}
 		info := &relaycommon.RelayInfo{
-			UsingGroup: "vip",
+			UsingGroup:  "vip",
 			ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenRouter},
 		}
 		applyUsagePostProcessing(info, u, nil)
@@ -146,7 +146,7 @@ func TestApplyUsagePostProcessingSkipsOpenRouter(t *testing.T) {
 			PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 100},
 		}
 		info := &relaycommon.RelayInfo{
-			UsingGroup: "vip",
+			UsingGroup:  "vip",
 			ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenAI},
 		}
 		applyUsagePostProcessing(info, u, nil)

@@ -97,6 +97,7 @@ type GroupRatioVisualEditorProps = {
   defaultUseAutoGroupField: ReactNode
   groupRatio: string
   topupGroupRatio: string
+  groupCacheReadAmplificationRatio: string
   userUsableGroups: string
   groupGroupRatio: string
   autoGroups: string
@@ -110,6 +111,7 @@ type GroupPricingRow = {
   name: string
   ratio: string
   topupRatio: string
+  cacheReadRatio: string
   selectable: boolean
   description: string
 }
@@ -159,15 +161,18 @@ function parseNestedRatioMap(
 function buildGroupPricingRows(
   groupRatio: string,
   userUsableGroups: string,
-  topupGroupRatio: string
+  topupGroupRatio: string,
+  groupCacheReadAmplificationRatio: string
 ): GroupPricingRow[] {
   const ratioMap = parseRatioMap(groupRatio)
   const usableMap = parseUsableMap(userUsableGroups)
   const topupMap = parseRatioMap(topupGroupRatio)
+  const cacheReadMap = parseRatioMap(groupCacheReadAmplificationRatio)
   const names = new Set([
     ...Object.keys(ratioMap),
     ...Object.keys(usableMap),
     ...Object.keys(topupMap),
+    ...Object.keys(cacheReadMap),
   ])
 
   return [...names].map((name) => ({
@@ -175,6 +180,9 @@ function buildGroupPricingRows(
     name,
     ratio: String(normalizeRatio(ratioMap[name])),
     topupRatio: Object.hasOwn(topupMap, name) ? String(topupMap[name]) : '',
+    cacheReadRatio: Object.hasOwn(cacheReadMap, name)
+      ? String(cacheReadMap[name])
+      : '',
     selectable: Object.hasOwn(usableMap, name),
     description: String(usableMap[name] ?? ''),
   }))
@@ -184,6 +192,7 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
   const groupRatio: Record<string, number> = {}
   const userUsableGroups: Record<string, string> = {}
   const topupGroupRatio: Record<string, number> = {}
+  const groupCacheReadAmplificationRatio: Record<string, number> = {}
 
   for (const row of rows) {
     const name = row.name.trim()
@@ -196,12 +205,24 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
     if (topup !== '' && Number.isFinite(Number(topup))) {
       topupGroupRatio[name] = Number(topup)
     }
+    // Backend rejects ratios <= 0 (CheckGroupCacheReadAmplificationRatio) and
+    // treats an absent entry as "fall back to the global ratio", so an empty
+    // or non-positive cell is omitted rather than written as 0.
+    const cacheRead = row.cacheReadRatio.trim()
+    if (cacheRead !== '' && Number(cacheRead) > 0) {
+      groupCacheReadAmplificationRatio[name] = Number(cacheRead)
+    }
   }
 
   return {
     GroupRatio: JSON.stringify(groupRatio, null, 2),
     UserUsableGroups: JSON.stringify(userUsableGroups, null, 2),
     TopupGroupRatio: JSON.stringify(topupGroupRatio, null, 2),
+    GroupCacheReadAmplificationRatio: JSON.stringify(
+      groupCacheReadAmplificationRatio,
+      null,
+      2
+    ),
   }
 }
 
@@ -211,18 +232,25 @@ function groupPricingSignature(rows: GroupPricingRow[]): string {
     groupRatio: parseRatioMap(serialized.GroupRatio),
     userUsableGroups: parseUsableMap(serialized.UserUsableGroups),
     topupGroupRatio: parseRatioMap(serialized.TopupGroupRatio),
+    groupCacheReadAmplificationRatio: parseRatioMap(
+      serialized.GroupCacheReadAmplificationRatio
+    ),
   })
 }
 
 function sourceGroupPricingSignature(
   groupRatio: string,
   userUsableGroups: string,
-  topupGroupRatio: string
+  topupGroupRatio: string,
+  groupCacheReadAmplificationRatio: string
 ): string {
   return JSON.stringify({
     groupRatio: parseRatioMap(groupRatio),
     userUsableGroups: parseUsableMap(userUsableGroups),
     topupGroupRatio: parseRatioMap(topupGroupRatio),
+    groupCacheReadAmplificationRatio: parseRatioMap(
+      groupCacheReadAmplificationRatio
+    ),
   })
 }
 
@@ -272,6 +300,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   defaultUseAutoGroupField,
   groupRatio,
   topupGroupRatio,
+  groupCacheReadAmplificationRatio,
   userUsableGroups,
   groupGroupRatio,
   autoGroups,
@@ -370,6 +399,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
           groupRatio={groupRatio}
           userUsableGroups={userUsableGroups}
           topupGroupRatio={topupGroupRatio}
+          groupCacheReadAmplificationRatio={groupCacheReadAmplificationRatio}
           onChange={onChange}
           onShowDetail={setDetailGroup}
         />
@@ -475,6 +505,7 @@ type GroupPricingTableProps = {
   groupRatio: string
   userUsableGroups: string
   topupGroupRatio: string
+  groupCacheReadAmplificationRatio: string
   onChange: (field: string, value: string) => void
   onShowDetail: (name: string) => void
 }
@@ -483,20 +514,27 @@ function GroupPricingTable({
   groupRatio,
   userUsableGroups,
   topupGroupRatio,
+  groupCacheReadAmplificationRatio,
   onChange,
   onShowDetail,
 }: GroupPricingTableProps) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [rows, setRows] = useState<GroupPricingRow[]>(() =>
-    buildGroupPricingRows(groupRatio, userUsableGroups, topupGroupRatio)
+    buildGroupPricingRows(
+      groupRatio,
+      userUsableGroups,
+      topupGroupRatio,
+      groupCacheReadAmplificationRatio
+    )
   )
 
   useEffect(() => {
     const incomingSignature = sourceGroupPricingSignature(
       groupRatio,
       userUsableGroups,
-      topupGroupRatio
+      topupGroupRatio,
+      groupCacheReadAmplificationRatio
     )
     setRows((currentRows) => {
       if (groupPricingSignature(currentRows) === incomingSignature) {
@@ -505,10 +543,16 @@ function GroupPricingTable({
       return buildGroupPricingRows(
         groupRatio,
         userUsableGroups,
-        topupGroupRatio
+        topupGroupRatio,
+        groupCacheReadAmplificationRatio
       )
     })
-  }, [groupRatio, userUsableGroups, topupGroupRatio])
+  }, [
+    groupRatio,
+    userUsableGroups,
+    topupGroupRatio,
+    groupCacheReadAmplificationRatio,
+  ])
 
   const emitRows = useCallback(
     (nextRows: GroupPricingRow[]) => {
@@ -517,6 +561,10 @@ function GroupPricingTable({
       onChange('GroupRatio', serialized.GroupRatio)
       onChange('UserUsableGroups', serialized.UserUsableGroups)
       onChange('TopupGroupRatio', serialized.TopupGroupRatio)
+      onChange(
+        'GroupCacheReadAmplificationRatio',
+        serialized.GroupCacheReadAmplificationRatio
+      )
     },
     [onChange]
   )
@@ -550,6 +598,7 @@ function GroupPricingTable({
         name,
         ratio: '1',
         topupRatio: '',
+        cacheReadRatio: '',
         selectable: true,
         description: '',
       },
@@ -699,6 +748,24 @@ function GroupPricingTable({
                     placeholder={t('Not set')}
                     onChange={(event) =>
                       updateRow(row._id, 'topupRatio', event.target.value)
+                    }
+                  />
+                ),
+              },
+              {
+                id: 'cache-read-ratio',
+                header: t('Cache read multiplier'),
+                className: 'w-32',
+                cell: (row) => (
+                  <Input
+                    type='number'
+                    min={0}
+                    step={0.01}
+                    value={row.cacheReadRatio}
+                    aria-label={t('Cache read multiplier')}
+                    placeholder={t('Global')}
+                    onChange={(event) =>
+                      updateRow(row._id, 'cacheReadRatio', event.target.value)
                     }
                   />
                 ),

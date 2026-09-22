@@ -91,7 +91,7 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 	// upstream-reported cost using the ORIGINAL cache read token count;
 	// feeding it the amplified value would skew the math. The billing path
 	// for OpenRouter therefore sees the un-amplified value as well.
-	if info.ChannelType != constant.ChannelTypeOpenRouter {
+	if info.GetChannelType() != constant.ChannelTypeOpenRouter {
 		amplifyCachedTokensForResponse(info, usage)
 	}
 }

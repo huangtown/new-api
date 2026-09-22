@@ -68,6 +68,7 @@ import {
 type GroupFormValues = {
   GroupRatio: string
   TopupGroupRatio: string
+  GroupCacheReadAmplificationRatio: string
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
@@ -169,6 +170,9 @@ export const GroupRatioForm = memo(function GroupRatioForm({
             onSectionChange={setSection}
             groupRatio={values.GroupRatio ?? ''}
             topupGroupRatio={values.TopupGroupRatio ?? ''}
+            groupCacheReadAmplificationRatio={
+              values.GroupCacheReadAmplificationRatio ?? ''
+            }
             userUsableGroups={values.UserUsableGroups ?? ''}
             groupGroupRatio={values.GroupGroupRatio ?? ''}
             autoGroups={values.AutoGroups ?? ''}
@@ -277,6 +281,33 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                       'Optional multiplier per user group used when calculating recharge pricing. Provide a JSON object such as'
                     )}
                     {` { "default": 1, "vip": 1.2 }`}.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='GroupCacheReadAmplificationRatio'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Cache read multipliers')}</FormLabel>
+                  <FormControl>
+                    <JsonCodeEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      textareaRef={field.ref}
+                      heightClassName='h-40 min-h-40 max-h-40'
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Optional multiplier applied to cache read tokens per group. Groups left out fall back to the global value. Provide a JSON object such as'
+                    )}
+                    {` { "default": 1, "vip": 2 }`}.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

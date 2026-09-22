@@ -321,8 +321,15 @@ streamLoop:
 		return types.NewOpenAIError(errors.Wrap(streamErr, "InvokeModelWithResponseStream"), types.ErrorCodeAwsInvokeError, getAwsErrorStatusCode(streamErr)), nil
 	}
 
-	if truncErr := claude.CheckClaudeStreamTruncated(info, claudeInfo); truncErr != nil {
-		return truncErr, nil
+	// A client that hangs up mid-stream also leaves the Claude stream without
+	// message_delta, but that is not an upstream failure: the truncation guard
+	// exists to stop billing a Bedrock-side abort as a success. Attributing a
+	// client disconnect to the channel would fail an otherwise healthy request
+	// and is what the request context records here.
+	if requestContext.Err() == nil {
+		if truncErr := claude.CheckClaudeStreamTruncated(info, claudeInfo); truncErr != nil {
+			return truncErr, nil
+		}
 	}
 
 	claude.HandleStreamFinalResponse(c, info, claudeInfo)

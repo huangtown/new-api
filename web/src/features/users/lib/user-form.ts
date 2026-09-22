@@ -41,6 +41,7 @@ export const userFormSchema = z.object({
   quota_dollars: z.number().min(0).optional(),
   group: z.string().optional(),
   remark: z.string().optional(),
+  visible_groups: z.array(z.string()).optional(),
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
     .optional(),
@@ -60,6 +61,7 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   quota_dollars: 0,
   group: DEFAULT_GROUP,
   remark: '',
+  visible_groups: [],
   // Filled against the backend catalog at render time; see UsersMutateDrawer.
   admin_permissions: {},
 }
@@ -74,7 +76,8 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
 export function transformFormDataToPayload(
   data: UserFormValues,
   userId?: number,
-  catalog?: PermissionCatalog
+  catalog?: PermissionCatalog,
+  canEditVisibleGroups = false
 ): UserFormData & { id?: number } {
   const payload: UserFormData & { id?: number } = {
     username: data.username,
@@ -101,6 +104,11 @@ export function transformFormDataToPayload(
     // For update: quota is adjusted atomically via /api/user/manage, not sent here
     payload.group = data.group
     payload.remark = data.remark || undefined
+    // Root-only. Omitting the field leaves the stored whitelist untouched;
+    // an empty array serializes to "[]", which clears the restriction.
+    if (canEditVisibleGroups) {
+      payload.visible_groups = JSON.stringify(data.visible_groups ?? [])
+    }
     payload.id = userId
   }
 
@@ -121,6 +129,22 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     quota_dollars: quotaUnitsToDollars(user.quota),
     group: user.group || DEFAULT_GROUP,
     remark: user.remark || '',
+    visible_groups: parseVisibleGroups(user.visible_groups),
     admin_permissions: user.admin_permissions ?? {},
+  }
+}
+
+/**
+ * The backend stores the channel group whitelist as a JSON array string.
+ * Anything unparseable (or absent) means "no restriction" — an empty list.
+ */
+function parseVisibleGroups(raw: string | null | undefined): string[] {
+  if (!raw) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((entry): entry is string => typeof entry === 'string')
+  } catch {
+    return []
   }
 }

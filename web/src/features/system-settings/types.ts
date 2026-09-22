@@ -259,6 +259,7 @@ export type ModelSettings = {
   'billing_setting.plugin_billing_expr': string
   'tool_price_setting.prices': string
   TopupGroupRatio: string
+  GroupCacheReadAmplificationRatio: string
   GroupRatio: string
   UserUsableGroups: string
   GroupGroupRatio: string
@@ -299,6 +300,7 @@ export type BillingSettings = {
   'billing_setting.plugin_billing_expr': string
   'tool_price_setting.prices': string
   TopupGroupRatio: string
+  GroupCacheReadAmplificationRatio: string
   GroupRatio: string
   UserUsableGroups: string
   GroupGroupRatio: string

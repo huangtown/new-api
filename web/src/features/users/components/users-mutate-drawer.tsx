@@ -163,6 +163,10 @@ export function UsersMutateDrawer({
   const selectedRole = form.watch('role')
   const canEditAdminPermissions = currentUser?.role === ROLE.SUPER_ADMIN
   const targetIsAdmin = (selectedRole ?? currentRow?.role ?? 0) >= ROLE.ADMIN
+  // The channel group whitelist only constrains non-root admins, and only root
+  // may set it — otherwise a restricted admin could widen their own access.
+  const canEditVisibleGroups = currentUser?.role === ROLE.SUPER_ADMIN
+  const showVisibleGroups = canEditVisibleGroups && isUpdate && targetIsAdmin
 
   const onSubmit = async (data: UserFormValues) => {
     if (!isUpdate || data.password) {
@@ -180,7 +184,8 @@ export function UsersMutateDrawer({
       const payload = transformFormDataToPayload(
         data,
         currentRow?.id,
-        permissionCatalog
+        permissionCatalog,
+        showVisibleGroups
       )
       const result = isUpdate
         ? await updateUser(payload as typeof payload & { id: number })
@@ -440,6 +445,59 @@ export function UsersMutateDrawer({
                         <FormMessage />
                       </FormItem>
                     )}
+                  />
+                </SideDrawerSection>
+              )}
+
+              {showVisibleGroups && (
+                <SideDrawerSection>
+                  <h3 className='text-sm font-medium'>
+                    {t('Visible Channel Groups')}
+                  </h3>
+                  <p className='text-muted-foreground text-xs'>
+                    {t(
+                      'Restrict which channel groups this admin can see. Select none to allow all groups.'
+                    )}
+                  </p>
+                  <FormField
+                    control={form.control}
+                    name='visible_groups'
+                    render={({ field }) => {
+                      const selected = field.value ?? []
+                      return (
+                        <FormItem>
+                          <div className='space-y-2'>
+                            {groups.length === 0 ? (
+                              <p className='text-muted-foreground text-xs'>
+                                {t('No groups available')}
+                              </p>
+                            ) : (
+                              groups.map((group) => (
+                                <label
+                                  key={group}
+                                  className='flex items-center gap-3'
+                                >
+                                  <Checkbox
+                                    checked={selected.includes(group)}
+                                    onCheckedChange={(checked) => {
+                                      field.onChange(
+                                        checked === true
+                                          ? [...selected, group]
+                                          : selected.filter(
+                                              (name) => name !== group
+                                            )
+                                      )
+                                    }}
+                                  />
+                                  <span className='text-sm'>{group}</span>
+                                </label>
+                              ))
+                            )}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )
+                    }}
                   />
                 </SideDrawerSection>
               )}

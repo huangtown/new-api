@@ -929,6 +929,12 @@ func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool) error {
 		"group":        newUser.Group,
 		"remark":       newUser.Remark,
 	}
+	// visible_groups is admin-only and optional: a nil pointer means the
+	// caller did not submit the field, so leave the stored value alone.
+	// An empty string is a real value — it clears the restriction.
+	if newUser.VisibleGroups != nil {
+		updates["visible_groups"] = *newUser.VisibleGroups
+	}
 	if updatePassword {
 		updates["password"] = newUser.Password
 	}

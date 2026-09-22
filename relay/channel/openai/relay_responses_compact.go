@@ -34,7 +34,7 @@ func OaiResponsesCompactionHandler(c *gin.Context, info *relaycommon.RelayInfo, 
 	// amplified value too. The response body is the raw upstream bytes
 	// captured before usage was extracted, so re-marshal after mutation.
 	// Skip OpenRouter — see amplifyCachedTokensForResponse docs.
-	if compactResp.Usage != nil && info.ChannelType != constant.ChannelTypeOpenRouter {
+	if compactResp.Usage != nil && info.GetChannelType() != constant.ChannelTypeOpenRouter {
 		amplifyCachedTokensForResponse(info, compactResp.Usage)
 		responseBody, _ = common.Marshal(compactResp)
 	}

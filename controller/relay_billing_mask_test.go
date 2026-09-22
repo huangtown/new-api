@@ -33,57 +33,57 @@ func TestBillingErrorMaskE2E(t *testing.T) {
 	common.BillingErrorMaskingStatusCode = "524"
 
 	tests := []struct {
-		name           string
-		userId         int
-		userRole       int
-		errorMsg       string
-		expectStatus   int
-		expectContains string
+		name              string
+		userId            int
+		userRole          int
+		errorMsg          string
+		expectStatus      int
+		expectContains    string
 		expectNotContains string
 	}{
 		{
-			name:           "普通用户触发计费关键词 - 应被掩盖",
-			userId:         100,
-			userRole:       1,  // 普通用户
-			errorMsg:       "账户余额不足，请充值",
-			expectStatus:   524,
-			expectContains: "bad response status code 524",
+			name:              "普通用户触发计费关键词 - 应被掩盖",
+			userId:            100,
+			userRole:          1, // 普通用户
+			errorMsg:          "账户余额不足，请充值",
+			expectStatus:      524,
+			expectContains:    "bad response status code 524",
 			expectNotContains: "余额",
 		},
 		{
-			name:           "普通管理员触发计费关键词 - 应被掩盖（新需求）",
-			userId:         10,
-			userRole:       10,  // 普通管理员
-			errorMsg:       "账户余额不足，请充值",
-			expectStatus:   524,
-			expectContains: "bad response status code 524",
+			name:              "普通管理员触发计费关键词 - 应被掩盖（新需求）",
+			userId:            10,
+			userRole:          10, // 普通管理员
+			errorMsg:          "账户余额不足，请充值",
+			expectStatus:      524,
+			expectContains:    "bad response status code 524",
 			expectNotContains: "余额",
 		},
 		{
-			name:           "超级管理员触发计费关键词 - 应看到真实错误",
-			userId:         1,
-			userRole:       100,  // 超级管理员
-			errorMsg:       "账户余额不足，请充值",
-			expectStatus:   400,
-			expectContains: "余额",
+			name:              "超级管理员触发计费关键词 - 应看到真实错误",
+			userId:            1,
+			userRole:          100, // 超级管理员
+			errorMsg:          "账户余额不足，请充值",
+			expectStatus:      400,
+			expectContains:    "余额",
 			expectNotContains: "bad response status code",
 		},
 		{
-			name:           "普通用户触发无关错误 - 不应被掩盖",
-			userId:         100,
-			userRole:       1,
-			errorMsg:       "upstream channel timeout",
-			expectStatus:   500,
-			expectContains: "timeout",
+			name:              "普通用户触发无关错误 - 不应被掩盖",
+			userId:            100,
+			userRole:          1,
+			errorMsg:          "upstream channel timeout",
+			expectStatus:      500,
+			expectContains:    "timeout",
 			expectNotContains: "bad response status code 524",
 		},
 		{
-			name:           "大小写不敏感匹配（普通管理员）",
-			userId:         10,
-			userRole:       10,
-			errorMsg:       "insufficient rmb balance",
-			expectStatus:   524,
-			expectContains: "bad response status code 524",
+			name:              "大小写不敏感匹配（普通管理员）",
+			userId:            10,
+			userRole:          10,
+			errorMsg:          "insufficient rmb balance",
+			expectStatus:      524,
+			expectContains:    "bad response status code 524",
 			expectNotContains: "rmb",
 		},
 	}
@@ -177,12 +177,12 @@ func TestInvalidStatusCodeFallback(t *testing.T) {
 		expectFallback bool
 		expectCode     int
 	}{
-		{"524", false, 524},   // 合法值
-		{"200", false, 200},   // 合法值
-		{"", true, 503},       // 空字符串 -> fallback
-		{"abc", true, 503},    // 非数字 -> fallback
-		{"999", true, 503},    // 超出范围 -> fallback
-		{"0", true, 503},      // 小于100 -> fallback
+		{"524", false, 524}, // 合法值
+		{"200", false, 200}, // 合法值
+		{"", true, 503},     // 空字符串 -> fallback
+		{"abc", true, 503},  // 非数字 -> fallback
+		{"999", true, 503},  // 超出范围 -> fallback
+		{"0", true, 503},    // 小于100 -> fallback
 	}
 
 	for _, tc := range tests {

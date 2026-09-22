@@ -33,6 +33,12 @@ func channelHasSensitiveChanges(channel *PatchChannel, origin *model.Channel, re
 	if _, ok := requestData["key_mode"]; ok && channel.KeyMode != nil {
 		return true
 	}
+	// The alias is the root-only display name that masks the real channel name
+	// (see applyChannelAliasForRole). A ChannelWrite admin must not be able to
+	// relabel a channel out from under the operators who rely on that name.
+	if _, ok := requestData["alias"]; ok && !equalStringPtr(channel.Alias, origin.Alias) {
+		return true
+	}
 	// Fail closed: any field present in the request that is neither a known
 	// sensitive field (gated above) nor an explicitly classified non-sensitive
 	// field must be treated as sensitive. This keeps a newly added channel field
@@ -71,6 +77,7 @@ var channelSensitiveFields = map[string]struct{}{
 	"other":               {},
 	"settings":            {},
 	"key_mode":            {},
+	"alias":               {},
 }
 
 // channelOperationalFields lists fields managed by operation endpoints instead

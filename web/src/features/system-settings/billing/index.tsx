@@ -53,6 +53,7 @@ const defaultBillingSettings: BillingSettings = {
   'billing_setting.plugin_billing_expr': '{}',
   'tool_price_setting.prices': '{}',
   TopupGroupRatio: '',
+  GroupCacheReadAmplificationRatio: '',
   GroupRatio: '',
   UserUsableGroups: '',
   GroupGroupRatio: '',

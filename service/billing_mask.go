@@ -48,9 +48,9 @@ type BillingMaskPolicy struct {
 // 收到 200 且 body 为空；2xx/3xx 会把失败伪装成成功，还会污染限流计数
 // （middleware/model-rate-limit.go）与渠道亲和性绑定（middleware/distributor.go）。
 const (
-	minMaskStatusCode = http.StatusBadRequest          // 400
+	minMaskStatusCode = http.StatusBadRequest // 400
 	maxMaskStatusCode = 599
-	fallbackMaskCode  = http.StatusServiceUnavailable  // 503
+	fallbackMaskCode  = http.StatusServiceUnavailable // 503
 )
 
 // ResolveBillingMaskPolicy 按用户身份和全局配置解析掩盖策略。
