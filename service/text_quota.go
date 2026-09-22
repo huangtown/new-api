@@ -285,6 +285,16 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 
 	dPromptTokens := decimal.NewFromInt(int64(summary.PromptTokens))
 	dCacheTokens := decimal.NewFromInt(int64(summary.CacheTokens))
+	// prompt_tokens includes the cached prefix, so the base charge is computed
+	// by removing the cached slice and re-pricing it at cacheRatio. When the
+	// cache read amplification ratio inflated CacheTokens, that removal must
+	// still use the upstream's REAL count: subtracting the inflated number
+	// shrinks the base and makes a higher multiplier bill LESS, which is the
+	// opposite of what the setting promises.
+	dCacheTokensForBase := dCacheTokens
+	if relayInfo.OriginalCachedTokens > 0 {
+		dCacheTokensForBase = decimal.NewFromInt(int64(relayInfo.OriginalCachedTokens))
+	}
 	dImageTokens := decimal.NewFromInt(int64(summary.ImageTokens))
 	dAudioTokens := decimal.NewFromInt(int64(summary.AudioTokens))
 	dCompletionTokens := decimal.NewFromInt(int64(summary.CompletionTokens))
@@ -310,7 +320,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		var cachedTokensWithRatio decimal.Decimal
 		if !dCacheTokens.IsZero() {
 			if !summary.IsClaudeUsageSemantic && !legacyClaudeDerived {
-				baseTokens = baseTokens.Sub(dCacheTokens)
+				baseTokens = baseTokens.Sub(dCacheTokensForBase)
 			}
 			cachedTokensWithRatio = dCacheTokens.Mul(dCacheRatio)
 		}

@@ -98,9 +98,16 @@ type RelayInfo struct {
 	IsPlayground           bool
 	UsePrice               bool
 	FallbackBillingRate    float64
-	RelayMode              int
-	OriginModelName        string
-	ResponseModel          *ResponseModel
+	// OriginalCachedTokens is the upstream's cache-read count before the cache
+	// read amplification ratio inflated it. prompt_tokens includes the cached
+	// prefix, so billing must subtract the REAL count and price only that
+	// slice at the amplified rate; subtracting the inflated number instead
+	// shrinks the base charge and makes a higher multiplier bill LESS.
+	// Zero means "no amplification was applied".
+	OriginalCachedTokens int
+	RelayMode            int
+	OriginModelName      string
+	ResponseModel        *ResponseModel
 
 	// BillingModelName is the pricing identity for this request. It is kept
 	// separate from OriginModelName and UpstreamModelName so virtual pricing

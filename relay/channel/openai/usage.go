@@ -119,6 +119,13 @@ func amplifyCachedTokensForResponse(info *relaycommon.RelayInfo, usage *dto.Usag
 	if ratio == 1.0 || usage.PromptTokensDetails.CachedTokens <= 0 {
 		return
 	}
+	// Remember the upstream's real count. prompt_tokens includes the cached
+	// prefix, so the billing layer has to subtract the REAL number and charge
+	// only that slice at the amplified rate — subtracting the inflated number
+	// would shrink the base charge and make a higher multiplier bill less.
+	if info != nil && info.OriginalCachedTokens == 0 {
+		info.OriginalCachedTokens = usage.PromptTokensDetails.CachedTokens
+	}
 	usage.PromptTokensDetails.CachedTokens = int(float64(usage.PromptTokensDetails.CachedTokens) * ratio)
 }
 
