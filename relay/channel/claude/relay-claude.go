@@ -379,6 +379,15 @@ func CheckClaudeStreamTruncated(info *relaycommon.RelayInfo, claudeInfo *ClaudeR
 	if info != nil && info.StreamStatus != nil {
 		endReason = string(info.StreamStatus.EndReason)
 	}
+	// A client that hangs up mid-stream also leaves the stream without
+	// message_delta, but that is not an upstream failure. Blaming the channel
+	// here would record a policy failure against a healthy channel and can
+	// auto-ban it, so only a stream the client was still reading counts as
+	// truncated. The Bedrock adaptor applies the same rule via its request
+	// context, which the AWS event stream has instead of a scanner end reason.
+	if endReason == string(relaycommon.StreamEndReasonClientGone) {
+		return nil
+	}
 	msg := fmt.Sprintf("upstream stream ended before message_delta (end_reason=%s)", endReason)
 	return types.NewOpenAIError(errors.New(msg), types.ErrorCodeBadResponse, http.StatusBadGateway, types.ErrOptionWithSkipRetry())
 }

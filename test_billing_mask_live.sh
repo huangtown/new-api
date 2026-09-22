@@ -1,7 +1,9 @@
 #!/bin/bash
 # 实测报错掩盖功能 - 向真实后端发送请求并验证响应
+#
+# 该脚本会 PUT /api/option/ 覆写掩盖相关配置，只指向本地或你自己的测试实例。
 
-API_BASE="${1:-http://144.34.183.180:20000}"
+API_BASE="${1:-http://localhost:3000}"
 ADMIN_TOKEN="${2}"
 USER_TOKEN="${3}"
 

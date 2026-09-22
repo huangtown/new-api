@@ -288,7 +288,7 @@ func GetAllChannels(c *gin.Context) {
 
 		// Apply group restriction filter for non-root users with visible groups
 		if userRole < common.RoleRootUser && len(visibleGroups) > 0 && filteredGroupFilter == "" {
-			query = query.Where("`group` IN ?", visibleGroups)
+			query = model.ApplyChannelVisibleGroupsFilter(query, visibleGroups)
 		}
 
 		if err := query.Count(&total).Error; err != nil {
@@ -331,7 +331,7 @@ func GetAllChannels(c *gin.Context) {
 
 	countQuery := buildChannelListQuery(filteredGroupFilter, statusFilter, -1)
 	if userRole < common.RoleRootUser && len(visibleGroups) > 0 && filteredGroupFilter == "" {
-		countQuery = countQuery.Where("`group` IN ?", visibleGroups)
+		countQuery = model.ApplyChannelVisibleGroupsFilter(countQuery, visibleGroups)
 	}
 
 	var results []struct {

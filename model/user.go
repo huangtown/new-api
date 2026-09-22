@@ -210,10 +210,20 @@ func (user *User) GetVisibleGroups() []string {
 	var groups []string
 	if err := json.Unmarshal([]byte(*user.VisibleGroups), &groups); err != nil {
 		common.SysLog("failed to unmarshal visible_groups for user " + strconv.Itoa(user.Id) + ": " + err.Error())
-		return []string{}
+		// Fail closed. An unset column legitimately means "no restriction",
+		// but a stored value we cannot parse means the restriction is unknown,
+		// and CanViewGroup reads an empty slice as "allow everything" — that
+		// would hand a corrupted row the full channel list. Returning a
+		// sentinel that matches no real group keeps the admin locked down
+		// until the value is repaired.
+		return []string{visibleGroupsUnparseable}
 	}
 	return groups
 }
+
+// visibleGroupsUnparseable can never equal a real channel group: group names
+// come from the group ratio config, which cannot contain a NUL byte.
+const visibleGroupsUnparseable = "\x00unparseable-visible-groups"
 
 // CanViewGroup checks if the user can view channels in the specified group.
 func (user *User) CanViewGroup(group string) bool {

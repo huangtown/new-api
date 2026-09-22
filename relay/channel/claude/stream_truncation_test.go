@@ -198,6 +198,14 @@ func TestCheckClaudeStreamTruncated(t *testing.T) {
 		require.NotNil(t, err)
 		require.Contains(t, err.Error(), "end_reason=eof")
 	})
+	t.Run("client disconnect is not blamed on the channel", func(t *testing.T) {
+		// A client hanging up also leaves the stream without message_delta.
+		// Reporting that as upstream truncation would record a policy failure
+		// against a healthy channel and can auto-ban it.
+		info := &relaycommon.RelayInfo{StreamStatus: relaycommon.NewStreamStatus()}
+		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, nil)
+		require.Nil(t, CheckClaudeStreamTruncated(info, &ClaudeResponseInfo{Done: false, Usage: &dto.Usage{}}))
+	})
 	t.Run("truncation error is skip-retry", func(t *testing.T) {
 		// SSE headers and message_start are already on the wire when this
 		// fires; a retry on another channel would splice a second stream

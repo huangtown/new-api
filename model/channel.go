@@ -165,6 +165,20 @@ func ApplyChannelGroupFilter(query *gorm.DB, group string) *gorm.DB {
 	return query.Where(channelGroupFilterCondition(), channelGroupFilterPattern(group))
 }
 
+// ApplyChannelVisibleGroupsFilter restricts a channel query to an exact set of
+// groups. It lives here because "group" is a reserved word whose quoting
+// differs per database — commonGroupCol is "group" on PostgreSQL and `group`
+// elsewhere — and that variable is unexported, so callers outside model/
+// cannot build the predicate portably on their own.
+//
+// An empty list means "no restriction" and leaves the query untouched.
+func ApplyChannelVisibleGroupsFilter(query *gorm.DB, groups []string) *gorm.DB {
+	if len(groups) == 0 {
+		return query
+	}
+	return query.Where(commonGroupCol+" IN ?", groups)
+}
+
 // Value implements driver.Valuer interface
 // 必须返回 string 而非 []byte:PG simple protocol 下 []byte 参数按 bytea
 // 编码,写 json 列会触发 SQLSTATE 22P02。
