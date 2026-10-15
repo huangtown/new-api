@@ -66,7 +66,7 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	if err == nil {
 		return
 	}
-	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.MaskSensitiveErrorWithStatusCode())))
+	logger.LogError(c, common.LogText("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.MaskSensitiveErrorWithStatusCode())))
 	if common.ErrorEmailNotifyEnabled && strings.TrimSpace(common.ErrorEmailNotifyRecipients) != "" {
 		retryChain := BuildRetryChainDetail(c.GetStringSlice("use_channel"))
 		detail := fmt.Sprintf("请求ID: %s\n请求: %s\n渠道: #%d %s\n状态码: %d\n消息: %s%s",

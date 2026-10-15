@@ -16,8 +16,8 @@ func RelayPanicRecover() gin.HandlerFunc {
 		defer func() {
 			if err := recover(); err != nil {
 				stackTrace := string(debug.Stack())
-				common.SysLog(fmt.Sprintf("panic detected: %v", err))
-				common.SysLog(fmt.Sprintf("stacktrace from panic: %s", stackTrace))
+				common.SysLog(common.LogText("panic detected: %v", err))
+				common.SysLog(common.LogText("stacktrace from panic: %s", stackTrace))
 				method, path := "", ""
 				if c.Request != nil {
 					method, path = c.Request.Method, c.Request.URL.String()
