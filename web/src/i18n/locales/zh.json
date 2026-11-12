@@ -2824,7 +2824,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "高级自定义渠道仅对 /v1/responses 且不做协议转换的路由生效。",
     "GitHub ID is empty!": "GitHub ID 为空！",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
@@ -7316,6 +7316,12 @@
     "Remove keyword {{kw}}": "移除关键词 {{kw}}",
     "Masked Status Code": "掩盖后状态码",
     "HTTP status code returned to the caller when the mask fires (100–599).": "掩盖触发时返回给调用方的 HTTP 状态码（100–599）。",
-    "Save billing error mask settings": "保存报错掩盖设置"
+    "Save billing error mask settings": "保存报错掩盖设置",
+    "Per-channel first token timeout": "按渠道的首字超时",
+    "Streaming only: how long to wait for the first data chunk before giving up. Idle time after the first chunk is bounded separately by STREAMING_TIMEOUT.": "仅对流式请求生效：等待首个数据块的最长时间。首字到达后的空闲时间由 STREAMING_TIMEOUT 单独控制。",
+    "Enable per-channel relay timeout": "启用按渠道的中继超时",
+    "Applies the per-channel relay timeout below to non-streaming requests. When off, those requests use the global RELAY_TIMEOUT instead.": "对非流式请求应用下方的按渠道中继超时。关闭后这些请求改用全局 RELAY_TIMEOUT。",
+    "Enable per-channel first token timeout": "启用按渠道的首字超时",
+    "Applies the first token timeout below to streaming requests. When off, streaming requests get no first token deadline.": "对流式请求应用下方的首字超时。关闭后流式请求不再有首字截止时间。"
   }
 }

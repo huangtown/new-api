@@ -170,6 +170,25 @@ func WithHttpClientTimeout(client *http.Client, timeout time.Duration) *http.Cli
 	}
 }
 
+// WithoutHttpClientTimeout drops any total timeout baked into the cached base
+// client (from RELAY_TIMEOUT) while keeping its transport and connection pool.
+//
+// Streaming relays must not carry http.Client.Timeout: that deadline covers the
+// whole response read, so a healthy long stream would be cut off mid-flight.
+// The connect and response-header phases stay bounded by the dialer and
+// transport, and the first-token / idle deadlines are enforced by the stream
+// reader instead.
+func WithoutHttpClientTimeout(client *http.Client) *http.Client {
+	if client == nil || client.Timeout == 0 {
+		return client
+	}
+	return &http.Client{
+		Transport:     client.Transport,
+		CheckRedirect: client.CheckRedirect,
+		Jar:           client.Jar,
+	}
+}
+
 // GetSSRFProtectedHTTPClient 返回带拨号时 SSRF 校验的客户端。
 // ssrfProtectedHTTPClient 由 InitHttpClient 在启动时初始化，运行期只读。
 func GetSSRFProtectedHTTPClient() *http.Client {

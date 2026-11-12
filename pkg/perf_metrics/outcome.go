@@ -66,7 +66,7 @@ func ClassifyRelayOutcome(ctx context.Context, info *relaycommon.RelayInfo, apiE
 		return OutcomeFailure
 	}
 	switch stream.EndReason {
-	case relaycommon.StreamEndReasonTimeout, relaycommon.StreamEndReasonScannerErr, relaycommon.StreamEndReasonPanic:
+	case relaycommon.StreamEndReasonTimeout, relaycommon.StreamEndReasonFirstTokenTimeout, relaycommon.StreamEndReasonScannerErr, relaycommon.StreamEndReasonPanic:
 		return OutcomeFailure
 	}
 	if stream.ExpectsTerminal && stream.Response == relaycommon.ResponseOutcomeUnknown && stream.EndReason != relaycommon.StreamEndReasonDone {

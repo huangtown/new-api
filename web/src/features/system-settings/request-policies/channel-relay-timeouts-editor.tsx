@@ -28,6 +28,9 @@ import type { ChannelRelayTimeoutEntry } from './channel-relay-timeouts'
 type ChannelRelayTimeoutsEditorProps = {
   value: ChannelRelayTimeoutEntry[]
   onChange: (value: ChannelRelayTimeoutEntry[]) => void
+  // Disables editing without discarding the stored rows, so turning the
+  // feature switch off does not wipe the configuration.
+  disabled?: boolean
 }
 
 export function ChannelRelayTimeoutsEditor(
@@ -89,6 +92,7 @@ export function ChannelRelayTimeoutsEditor(
                     min={1}
                     step={1}
                     className='pl-7 font-mono tabular-nums'
+                    disabled={props.disabled}
                     value={entry.channelId || ''}
                     onChange={(event) =>
                       updateEntry(index, 'channelId', event.target.value)
@@ -108,6 +112,7 @@ export function ChannelRelayTimeoutsEditor(
                     max={86400}
                     step={1}
                     className='pr-9 font-mono tabular-nums'
+                    disabled={props.disabled}
                     value={entry.timeoutSeconds || ''}
                     onChange={(event) =>
                       updateEntry(index, 'timeoutSeconds', event.target.value)
@@ -128,6 +133,7 @@ export function ChannelRelayTimeoutsEditor(
                 size='icon'
                 className='justify-self-end text-muted-foreground hover:text-destructive sm:justify-self-auto'
                 aria-label={t('Remove channel timeout')}
+                disabled={props.disabled}
                 onClick={() => removeEntry(index)}
               >
                 <HugeiconsIcon icon={Delete02Icon} strokeWidth={1.8} />
@@ -145,6 +151,7 @@ export function ChannelRelayTimeoutsEditor(
           type='button'
           variant='outline'
           size='sm'
+          disabled={props.disabled}
           onClick={() =>
             props.onChange([
               ...props.value,

@@ -10,15 +10,19 @@ import (
 type StreamEndReason string
 
 const (
-	StreamEndReasonNone        StreamEndReason = ""
-	StreamEndReasonDone        StreamEndReason = "done"
-	StreamEndReasonTimeout     StreamEndReason = "timeout"
-	StreamEndReasonClientGone  StreamEndReason = "client_gone"
-	StreamEndReasonScannerErr  StreamEndReason = "scanner_error"
-	StreamEndReasonHandlerStop StreamEndReason = "handler_stop"
-	StreamEndReasonEOF         StreamEndReason = "eof"
-	StreamEndReasonPanic       StreamEndReason = "panic"
-	StreamEndReasonPingFail    StreamEndReason = "ping_fail"
+	StreamEndReasonNone    StreamEndReason = ""
+	StreamEndReasonDone    StreamEndReason = "done"
+	StreamEndReasonTimeout StreamEndReason = "timeout"
+	// StreamEndReasonFirstTokenTimeout means no data chunk arrived within the
+	// first-token budget. Distinct from Timeout so operators can tell "never
+	// started producing" apart from "went idle mid-stream".
+	StreamEndReasonFirstTokenTimeout StreamEndReason = "first_token_timeout"
+	StreamEndReasonClientGone        StreamEndReason = "client_gone"
+	StreamEndReasonScannerErr        StreamEndReason = "scanner_error"
+	StreamEndReasonHandlerStop       StreamEndReason = "handler_stop"
+	StreamEndReasonEOF               StreamEndReason = "eof"
+	StreamEndReasonPanic             StreamEndReason = "panic"
+	StreamEndReasonPingFail          StreamEndReason = "ping_fail"
 )
 
 // ResponseOutcome is the protocol-level result of one response, independent of

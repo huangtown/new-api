@@ -62,6 +62,9 @@ func requestPolicyDefaultOptions() map[string]string {
 	defaults["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	defaults["ChannelDisableThreshold"] = strconv.FormatFloat(common.ChannelDisableThreshold, 'f', -1, 64)
 	defaults[operation_setting.ChannelRelayTimeoutsOptionKey] = operation_setting.ChannelRelayTimeouts2JSONString()
+	defaults[operation_setting.ChannelFirstTokenTimeoutsOptionKey] = operation_setting.ChannelFirstTokenTimeouts2JSONString()
+	defaults[operation_setting.ChannelRelayTimeoutEnabledOptionKey] = strconv.FormatBool(operation_setting.IsChannelRelayTimeoutEnabled())
+	defaults[operation_setting.ChannelFirstTokenTimeoutEnabledOptionKey] = strconv.FormatBool(operation_setting.IsChannelFirstTokenTimeoutEnabled())
 	return defaults
 }
 
@@ -70,7 +73,7 @@ func IsRequestPolicyOption(key string) bool {
 		return true
 	}
 	switch key {
-	case "CheckSensitiveEnabled", "CheckSensitiveOnPromptEnabled", "SensitiveWords", "AutomaticEnableChannelEnabled", "ChannelDisableThreshold", "monitor_setting.auto_test_channel_enabled", "monitor_setting.auto_test_channel_minutes", "monitor_setting.channel_test_concurrency", "monitor_setting.channel_test_mode", "RetryTimes", "AutomaticRetryStatusCodes", "AutomaticDisableChannelEnabled", "AutomaticDisableStatusCodes", "AutomaticDisableKeywords", operation_setting.ChannelRelayTimeoutsOptionKey:
+	case "CheckSensitiveEnabled", "CheckSensitiveOnPromptEnabled", "SensitiveWords", "AutomaticEnableChannelEnabled", "ChannelDisableThreshold", "monitor_setting.auto_test_channel_enabled", "monitor_setting.auto_test_channel_minutes", "monitor_setting.channel_test_concurrency", "monitor_setting.channel_test_mode", "RetryTimes", "AutomaticRetryStatusCodes", "AutomaticDisableChannelEnabled", "AutomaticDisableStatusCodes", "AutomaticDisableKeywords", operation_setting.ChannelRelayTimeoutsOptionKey, operation_setting.ChannelFirstTokenTimeoutsOptionKey, operation_setting.ChannelRelayTimeoutEnabledOptionKey, operation_setting.ChannelFirstTokenTimeoutEnabledOptionKey:
 		return true
 	}
 	return false
@@ -144,7 +147,7 @@ func BuildRequestPolicy(options map[string]string) (*RequestPolicySnapshot, erro
 		return nil, err
 	}
 	snapshot.DisableKeywords = strings.Split(raw["AutomaticDisableKeywords"], "\n")
-	for _, key := range []string{"CheckSensitiveEnabled", "CheckSensitiveOnPromptEnabled", "AutomaticEnableChannelEnabled", "monitor_setting.auto_test_channel_enabled"} {
+	for _, key := range []string{"CheckSensitiveEnabled", "CheckSensitiveOnPromptEnabled", "AutomaticEnableChannelEnabled", "monitor_setting.auto_test_channel_enabled", operation_setting.ChannelRelayTimeoutEnabledOptionKey, operation_setting.ChannelFirstTokenTimeoutEnabledOptionKey} {
 		if _, err := strconv.ParseBool(raw[key]); err != nil {
 			return nil, fmt.Errorf("invalid boolean: %s", key)
 		}
@@ -159,6 +162,9 @@ func BuildRequestPolicy(options map[string]string) (*RequestPolicySnapshot, erro
 		return nil, err
 	}
 	if _, err := operation_setting.ParseChannelRelayTimeouts(raw[operation_setting.ChannelRelayTimeoutsOptionKey]); err != nil {
+		return nil, err
+	}
+	if _, err := operation_setting.ParseChannelFirstTokenTimeouts(raw[operation_setting.ChannelFirstTokenTimeoutsOptionKey]); err != nil {
 		return nil, err
 	}
 	for _, key := range []string{"ChannelDisableThreshold", "monitor_setting.auto_test_channel_minutes"} {

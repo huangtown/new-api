@@ -537,7 +537,19 @@ func GetRelayHttpClient(info *common.RelayInfo) (*http.Client, error) {
 		return nil, errors.New("relay HTTP client is not initialized")
 	}
 	if timeoutSeconds, ok := operation_setting.GetChannelRelayTimeout(info.ChannelId); ok {
-		client = service.WithHttpClientTimeout(client, time.Duration(timeoutSeconds)*time.Second)
+		// A total timeout cannot be applied to a stream: http.Client.Timeout
+		// covers the whole response read, so a healthy long stream would be cut
+		// off mid-flight. Streaming relays bound the wait for the first token
+		// instead (see StreamScannerHandler), then only an idle deadline.
+		if info.IsStream {
+			client = service.WithoutHttpClientTimeout(client)
+		} else {
+			client = service.WithHttpClientTimeout(client, time.Duration(timeoutSeconds)*time.Second)
+		}
+	} else if info.IsStream {
+		// No per-channel override, but the base client may still carry the
+		// global RELAY_TIMEOUT. Strip it for streams for the same reason.
+		client = service.WithoutHttpClientTimeout(client)
 	}
 	return client, nil
 }

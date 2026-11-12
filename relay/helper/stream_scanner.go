@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -92,6 +93,46 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	ctx, cancel := context.WithCancel(context.Background())
 
 	streamingTimeout := time.Duration(constant.StreamingTimeout) * time.Second
+
+	// The idle ticker below only bounds the gap between two scanned lines, and
+	// keep-alive / non-data lines reset it. That is not a first-token bound: an
+	// upstream that trickles empty lines while producing no content would keep
+	// the stream alive forever. This timer bounds only the wait for the first
+	// real data chunk, then it is disarmed and the idle ticker takes over.
+	//
+	// The feature switch is authoritative: when it is off no timer is created at
+	// all. When it is on, an unconfigured budget falls back to STREAMING_TIMEOUT
+	// so the bound exists out of the box; RELAY_FIRST_TOKEN_TIMEOUT (or a
+	// per-channel override) tunes it.
+	var firstTokenTimeout time.Duration
+	if operation_setting.IsChannelFirstTokenTimeoutEnabled() {
+		firstTokenTimeout = time.Duration(operation_setting.ResolveFirstTokenTimeout(info.ChannelId)) * time.Second
+		if firstTokenTimeout <= 0 {
+			firstTokenTimeout = streamingTimeout
+		}
+	}
+	var (
+		firstTokenTimer *time.Timer
+		firstTokenC     <-chan time.Time
+		// firstTokenSeen is written by the scanner goroutine and read by the
+		// wait loop, so it must be atomic: info.FirstResponseTime is not.
+		firstTokenSeen atomic.Bool
+	)
+	if firstTokenTimeout > 0 {
+		firstTokenTimer = time.NewTimer(firstTokenTimeout)
+		firstTokenC = firstTokenTimer.C
+	}
+	var stopFirstTokenOnce sync.Once
+	stopFirstTokenTimer := func() {
+		stopFirstTokenOnce.Do(func() {
+			if firstTokenTimer != nil {
+				firstTokenTimer.Stop()
+			}
+		})
+	}
+	if firstTokenTimer != nil {
+		defer stopFirstTokenTimer()
+	}
 
 	var (
 		stopChan    = make(chan bool, 3) // 增加缓冲区避免阻塞
@@ -269,6 +310,11 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 				continue
 			}
 			if !strings.HasPrefix(data, "[DONE]") {
+				// First real data chunk: the first-token budget is satisfied.
+				// Publish the flag before disarming so the wait loop never sees
+				// "timer fired" without "chunk arrived" for the same chunk.
+				firstTokenSeen.Store(true)
+				stopFirstTokenTimer()
 				info.SetFirstResponseTime()
 				info.ReceivedResponseCount++
 
@@ -296,17 +342,36 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	})
 
 	// 主循环等待完成或超时
-	select {
-	case <-ticker.C:
-		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
-	case <-stopChan:
-		// EndReason already set by the goroutine that triggered stopChan
-	case <-c.Request.Context().Done():
-		// 客户端断开：立即 cleanup 关闭上游 resp.Body，解除 scanner 阻塞并让上游停止生成，
-		// 避免为已放弃的请求继续消费上游 token。
-		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, c.Request.Context().Err())
+	for {
+		select {
+		case <-ticker.C:
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
+			goto streamFinished
+		case <-firstTokenC:
+			// The budget for the first data chunk expired. If a chunk landed in the
+			// same window the scanner has already stopped the timer; treat that as
+			// a normal start and keep waiting for the idle ticker instead.
+			if firstTokenSeen.Load() {
+				firstTokenC = nil
+				continue
+			}
+			stopFirstTokenTimer()
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonFirstTokenTimeout,
+				fmt.Errorf("no data within %s first-token budget", firstTokenTimeout))
+			goto streamFinished
+		case <-stopChan:
+			// EndReason already set by the goroutine that triggered stopChan
+			goto streamFinished
+		case <-c.Request.Context().Done():
+			// 客户端断开：立即 cleanup 关闭上游 resp.Body，解除 scanner 阻塞并让上游停止生成，
+			// 避免为已放弃的请求继续消费上游 token。
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, c.Request.Context().Err())
+			goto streamFinished
+		}
 	}
 
+streamFinished:
+	stopFirstTokenTimer()
 	cleanup()
 	if info.StreamStatus.IsNormalEnd() && !info.StreamStatus.HasErrors() {
 		logger.LogInfo(c, common.LogText("stream ended: %s", info.StreamStatus.Summary()))

@@ -22,6 +22,9 @@ import type { SecuritySettings } from '../types'
 export type RetrySettings = {
   RetryTimes: number
   ChannelRelayTimeouts: string
+  ChannelRelayTimeoutEnabled: boolean
+  ChannelFirstTokenTimeouts: string
+  ChannelFirstTokenTimeoutEnabled: boolean
   AutomaticRetryStatusCodes: string
 }
 export type HealthSettings = {
@@ -50,6 +53,9 @@ export type RequestPolicySettings = RetrySettings &
 export const defaultRequestPolicySettings: RequestPolicySettings = {
   RetryTimes: 0,
   ChannelRelayTimeouts: '{}',
+  ChannelRelayTimeoutEnabled: true,
+  ChannelFirstTokenTimeouts: '{}',
+  ChannelFirstTokenTimeoutEnabled: true,
   AutomaticRetryStatusCodes:
     '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
   ChannelDisableThreshold: '',

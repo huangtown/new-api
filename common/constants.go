@@ -209,6 +209,15 @@ var RelayIdleConnTimeout int // unit is second
 // ResponseHeaderTimeout only bounds the wait for the response headers; once the
 // headers arrive, streaming is unaffected.
 var RelayResponseHeaderTimeout int // unit is second
+
+// RelayFirstTokenTimeout bounds only the wait for the first streamed token.
+//
+// A total timeout (RelayTimeout / per-channel relay timeouts) is unusable for
+// streaming: http.Client.Timeout covers the whole response read, so a healthy
+// long stream is cut off mid-flight. This value bounds just the delay before
+// the first data chunk arrives; after that only the idle timeout applies.
+// 0 disables it.
+var RelayFirstTokenTimeout int // unit is second
 var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int
 

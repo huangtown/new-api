@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -582,4 +583,156 @@ func TestNewStreamScannerCallerLimit(t *testing.T) {
 	require.True(t, scanner.Scan())
 	assert.Equal(t, "data: ok", scanner.Text())
 	require.NoError(t, scanner.Err())
+}
+
+// ---------- first-token timeout ----------
+
+// setFirstTokenBudget overrides the global first-token budget for one test.
+// Not parallel-safe: the budget is process-global.
+func setFirstTokenBudget(t *testing.T, seconds int) {
+	t.Helper()
+	prev := common.RelayFirstTokenTimeout
+	common.RelayFirstTokenTimeout = seconds
+	t.Cleanup(func() { common.RelayFirstTokenTimeout = prev })
+}
+
+// An upstream that accepts the request and then produces nothing must end on
+// the first-token budget rather than hanging until the idle timeout.
+func TestStreamScannerHandler_FirstTokenTimeoutWhenNothingArrives(t *testing.T) {
+	setFirstTokenBudget(t, 1)
+
+	pr, pw := io.Pipe()
+	t.Cleanup(func() {
+		_ = pr.Close()
+		_ = pw.Close()
+	})
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		DisablePing: true,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	done := make(chan struct{})
+	go func() {
+		StreamScannerHandler(c, &http.Response{Body: pr}, info,
+			func(data string, sr *StreamResult) {})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("stream did not end within the first-token budget")
+	}
+
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonFirstTokenTimeout, info.StreamStatus.EndReason)
+	assert.Zero(t, info.ReceivedResponseCount, "no data was ever delivered")
+}
+
+// Keep-alive / comment lines reset the idle ticker but must NOT satisfy the
+// first-token budget: they carry no content.
+func TestStreamScannerHandler_KeepAliveLinesDoNotSatisfyFirstToken(t *testing.T) {
+	setFirstTokenBudget(t, 1)
+
+	pr, pw := io.Pipe()
+	t.Cleanup(func() {
+		_ = pr.Close()
+		_ = pw.Close()
+	})
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		DisablePing: true,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	done := make(chan struct{})
+	go func() {
+		StreamScannerHandler(c, &http.Response{Body: pr}, info,
+			func(data string, sr *StreamResult) {})
+		close(done)
+	}()
+
+	// Keep the idle ticker busy without ever producing a data chunk.
+	stopKeepAlive := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stopKeepAlive:
+				return
+			case <-ticker.C:
+				if _, err := fmt.Fprint(pw, ": keepalive\n"); err != nil {
+					return
+				}
+			}
+		}
+	}()
+	defer close(stopKeepAlive)
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("keep-alive lines wrongly satisfied the first-token budget")
+	}
+
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonFirstTokenTimeout, info.StreamStatus.EndReason)
+}
+
+// Once a real chunk arrives the first-token timer is disarmed; the stream may
+// then keep running well past that budget until it finishes normally.
+func TestStreamScannerHandler_FirstChunkDisarmsFirstTokenTimer(t *testing.T) {
+	setFirstTokenBudget(t, 1)
+
+	pr, pw := io.Pipe()
+	t.Cleanup(func() {
+		_ = pr.Close()
+		_ = pw.Close()
+	})
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		DisablePing: true,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	var count atomic.Int64
+	done := make(chan struct{})
+	go func() {
+		StreamScannerHandler(c, &http.Response{Body: pr}, info,
+			func(data string, sr *StreamResult) { count.Add(1) })
+		close(done)
+	}()
+
+	_, err := fmt.Fprint(pw, "data: first\n")
+	require.NoError(t, err)
+
+	// Outlive the 1s first-token budget, then finish normally.
+	time.Sleep(1500 * time.Millisecond)
+	_, err = fmt.Fprint(pw, "data: [DONE]\n")
+	require.NoError(t, err)
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("stream did not finish normally after the first chunk")
+	}
+
+	assert.Equal(t, int64(1), count.Load())
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason,
+		"first chunk must disarm the first-token timer")
 }

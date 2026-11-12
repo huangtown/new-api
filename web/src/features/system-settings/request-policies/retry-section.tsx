@@ -28,8 +28,13 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 
 import { SettingsCard } from '../components/settings-card'
+import {
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
 import { safeNumberFieldProps } from '../utils/numeric-field'
 import { ChannelRelayTimeoutsEditor } from './channel-relay-timeouts-editor'
 import type { RoutingPolicyFormValues } from './routing-form'
@@ -83,6 +88,28 @@ export function RetrySection() {
         />
         <FormField
           control={form.control}
+          name='ChannelRelayTimeoutEnabled'
+          render={({ field }) => (
+            <SettingsSwitchItem>
+              <SettingsSwitchContent>
+                <FormLabel>{t('Enable per-channel relay timeout')}</FormLabel>
+                <FormDescription>
+                  {t(
+                    'Applies the per-channel relay timeout below to non-streaming requests. When off, those requests use the global RELAY_TIMEOUT instead.'
+                  )}
+                </FormDescription>
+              </SettingsSwitchContent>
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+            </SettingsSwitchItem>
+          )}
+        />
+        <FormField
+          control={form.control}
           name='ChannelRelayTimeouts'
           render={({ field }) => (
             <FormItem>
@@ -91,11 +118,58 @@ export function RetrySection() {
                 <ChannelRelayTimeoutsEditor
                   value={field.value}
                   onChange={field.onChange}
+                  disabled={!form.watch('ChannelRelayTimeoutEnabled')}
                 />
               </FormControl>
               <FormDescription>
                 {t(
-                  'Overrides the global relay timeout for the listed channels. Leave empty to use the global value.'
+                  'Overrides the global relay timeout for the listed channels. Leave empty to use the global value. Ignored for streaming requests, which use the first token timeout instead.'
+                )}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name='ChannelFirstTokenTimeoutEnabled'
+          render={({ field }) => (
+            <SettingsSwitchItem>
+              <SettingsSwitchContent>
+                <FormLabel>
+                  {t('Enable per-channel first token timeout')}
+                </FormLabel>
+                <FormDescription>
+                  {t(
+                    'Applies the first token timeout below to streaming requests. When off, streaming requests get no first token deadline.'
+                  )}
+                </FormDescription>
+              </SettingsSwitchContent>
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+            </SettingsSwitchItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name='ChannelFirstTokenTimeouts'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('Per-channel first token timeout')}</FormLabel>
+              <FormControl>
+                <ChannelRelayTimeoutsEditor
+                  value={field.value}
+                  onChange={field.onChange}
+                  disabled={!form.watch('ChannelFirstTokenTimeoutEnabled')}
+                />
+              </FormControl>
+              <FormDescription>
+                {t(
+                  'Streaming only: how long to wait for the first data chunk before giving up. Idle time after the first chunk is bounded separately by STREAMING_TIMEOUT.'
                 )}
               </FormDescription>
               <FormMessage />
