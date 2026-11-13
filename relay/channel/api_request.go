@@ -597,7 +597,46 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		}
 	}
 
+	// Bound only the wait for upstream response headers. The transport-level
+	// ResponseHeaderTimeout covers this too, but it is a single global value
+	// shared by every channel; a per-channel budget lets an operator cut off one
+	// slow upstream without penalising the rest.
+	//
+	// The cancel function is wired to the timer ONLY. Calling it after the
+	// headers arrive would abort the body read (net/http ties the response body
+	// to the request context), so the success path just stops the timer and lets
+	// the parent context clean up.
+	var headerTimer *time.Timer
+	var headerCancelTimeout context.CancelFunc
+	if headerSeconds := operation_setting.ResolveResponseHeaderTimeout(info.ChannelId); headerSeconds > 0 {
+		headerCtx, cancelHeader := context.WithCancel(req.Context())
+		req = req.WithContext(headerCtx)
+		headerCancelTimeout = cancelHeader
+		headerTimer = time.AfterFunc(time.Duration(headerSeconds)*time.Second, cancelHeader)
+		if common2.DebugEnabled {
+			logger.LogDebug(c, "channel response header timeout seconds: %d", headerSeconds)
+		}
+	}
+
 	resp, err := relayClient.Do(req)
+	headerTimedOut := false
+	if headerTimer != nil {
+		// Stop the timer without cancelling: headers are in, and the body must
+		// remain readable at its own pace.
+		stopped := headerTimer.Stop()
+		if !stopped && err != nil && c.Request.Context().Err() == nil {
+			// The timer fired and cancelled the context before Do returned.
+			headerTimedOut = true
+			headerCancelTimeout()
+		}
+	}
+	if headerTimedOut {
+		return nil, types.NewError(
+			fmt.Errorf("upstream did not return response headers within %d seconds", operation_setting.ResolveResponseHeaderTimeout(info.ChannelId)),
+			types.ErrorCodeDoRequestFailed,
+			types.ErrOptionWithHideErrMsg("upstream error: do request failed"),
+		)
+	}
 	if err != nil {
 		logger.LogError(c, common2.LogText("do request failed: %s", err.Error()))
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))

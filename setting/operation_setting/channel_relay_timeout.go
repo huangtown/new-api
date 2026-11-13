@@ -22,19 +22,30 @@ const (
 	// existed.
 	ChannelRelayTimeoutEnabledOptionKey      = "ChannelRelayTimeoutEnabled"
 	ChannelFirstTokenTimeoutEnabledOptionKey = "ChannelFirstTokenTimeoutEnabled"
-	MaxChannelRelayTimeoutSeconds            = 86400
+	// ChannelResponseHeaderTimeoutsOptionKey bounds how long the relay waits for
+	// upstream response headers. This is the phase a slow upstream sits in when it
+	// accepts the connection and returns nothing for a long time; neither the
+	// total timeout (not applied to streams) nor the first-token timeout (starts
+	// only after the headers arrive) covers it.
+	ChannelResponseHeaderTimeoutsOptionKey       = "ChannelResponseHeaderTimeouts"
+	ChannelResponseHeaderTimeoutEnabledOptionKey = "ChannelResponseHeaderTimeoutEnabled"
+	MaxChannelRelayTimeoutSeconds                = 86400
 )
 
 var channelRelayTimeouts atomic.Value
 var channelFirstTokenTimeouts atomic.Value
+var channelResponseHeaderTimeouts atomic.Value
 var channelRelayTimeoutEnabled atomic.Bool
 var channelFirstTokenTimeoutEnabled atomic.Bool
+var channelResponseHeaderTimeoutEnabled atomic.Bool
 
 func init() {
 	channelRelayTimeouts.Store(map[int]int{})
 	channelFirstTokenTimeouts.Store(map[int]int{})
+	channelResponseHeaderTimeouts.Store(map[int]int{})
 	channelRelayTimeoutEnabled.Store(true)
 	channelFirstTokenTimeoutEnabled.Store(true)
+	channelResponseHeaderTimeoutEnabled.Store(true)
 }
 
 // The setters only touch the atomic flag; model.updateOptionMap owns the
@@ -53,6 +64,14 @@ func SetChannelFirstTokenTimeoutEnabled(enabled bool) {
 
 func IsChannelFirstTokenTimeoutEnabled() bool {
 	return channelFirstTokenTimeoutEnabled.Load()
+}
+
+func SetChannelResponseHeaderTimeoutEnabled(enabled bool) {
+	channelResponseHeaderTimeoutEnabled.Store(enabled)
+}
+
+func IsChannelResponseHeaderTimeoutEnabled() bool {
+	return channelResponseHeaderTimeoutEnabled.Load()
 }
 
 // parseChannelTimeoutMap is shared by the total and first-token maps: both are
@@ -94,6 +113,10 @@ func ParseChannelRelayTimeouts(value string) (map[int]int, error) {
 
 func ParseChannelFirstTokenTimeouts(value string) (map[int]int, error) {
 	return parseChannelTimeoutMap(value, "channel first token timeouts")
+}
+
+func ParseChannelResponseHeaderTimeouts(value string) (map[int]int, error) {
+	return parseChannelTimeoutMap(value, "channel response header timeouts")
 }
 
 func UpdateChannelRelayTimeoutsByJSONString(value string) error {
@@ -160,4 +183,44 @@ func ResolveFirstTokenTimeout(channelID int) int {
 		return timeoutSeconds
 	}
 	return common.RelayFirstTokenTimeout
+}
+
+func UpdateChannelResponseHeaderTimeoutsByJSONString(value string) error {
+	timeouts, err := ParseChannelResponseHeaderTimeouts(value)
+	if err != nil {
+		return err
+	}
+	channelResponseHeaderTimeouts.Store(timeouts)
+	return nil
+}
+
+func ChannelResponseHeaderTimeouts2JSONString() string {
+	timeouts := channelResponseHeaderTimeouts.Load().(map[int]int)
+	jsonBytes, err := common.Marshal(timeouts)
+	if err != nil {
+		return "{}"
+	}
+	return string(jsonBytes)
+}
+
+// GetChannelResponseHeaderTimeout returns the per-channel response-header
+// budget. The feature switch gates it the same way the other two gates work.
+func GetChannelResponseHeaderTimeout(channelID int) (int, bool) {
+	if channelID <= 0 || !channelResponseHeaderTimeoutEnabled.Load() {
+		return 0, false
+	}
+	timeouts := channelResponseHeaderTimeouts.Load().(map[int]int)
+	timeoutSeconds, ok := timeouts[channelID]
+	return timeoutSeconds, ok
+}
+
+// ResolveResponseHeaderTimeout returns the response-header budget for a
+// channel: the per-channel override when configured, otherwise the global env
+// value. 0 means no per-request bound; the transport-level
+// RELAY_RESPONSE_HEADER_TIMEOUT still applies in that case.
+func ResolveResponseHeaderTimeout(channelID int) int {
+	if timeoutSeconds, ok := GetChannelResponseHeaderTimeout(channelID); ok {
+		return timeoutSeconds
+	}
+	return common.RelayResponseHeaderTimeout
 }

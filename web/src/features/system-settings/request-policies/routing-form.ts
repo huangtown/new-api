@@ -67,6 +67,8 @@ export function createRoutingPolicySchema(t: TFunction) {
     ChannelRelayTimeouts: channelTimeoutEntries,
     ChannelFirstTokenTimeoutEnabled: z.boolean(),
     ChannelFirstTokenTimeouts: channelTimeoutEntries,
+    ChannelResponseHeaderTimeoutEnabled: z.boolean(),
+    ChannelResponseHeaderTimeouts: channelTimeoutEntries,
     AutomaticRetryStatusCodes: z
       .string()
       .refine(
@@ -121,6 +123,11 @@ export function routingPolicyFormValues(
     ChannelFirstTokenTimeouts: parseChannelRelayTimeouts(
       options.ChannelFirstTokenTimeouts
     ),
+    ChannelResponseHeaderTimeoutEnabled:
+      options.ChannelResponseHeaderTimeoutEnabled !== 'false',
+    ChannelResponseHeaderTimeouts: parseChannelRelayTimeouts(
+      options.ChannelResponseHeaderTimeouts
+    ),
     AutomaticRetryStatusCodes: options.AutomaticRetryStatusCodes,
     channel_affinity_setting: {
       enabled: options['channel_affinity_setting.enabled'] === 'true',
@@ -153,6 +160,12 @@ export function routingPolicyOptions(
     ),
     ChannelFirstTokenTimeouts: serializeChannelRelayTimeouts(
       values.ChannelFirstTokenTimeouts
+    ),
+    ChannelResponseHeaderTimeoutEnabled: String(
+      values.ChannelResponseHeaderTimeoutEnabled
+    ),
+    ChannelResponseHeaderTimeouts: serializeChannelRelayTimeouts(
+      values.ChannelResponseHeaderTimeouts
     ),
     AutomaticRetryStatusCodes: values.AutomaticRetryStatusCodes,
     ...Object.fromEntries(

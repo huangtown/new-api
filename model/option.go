@@ -182,6 +182,8 @@ func InitOptionMap() {
 	common.OptionMap[operation_setting.ChannelFirstTokenTimeoutsOptionKey] = operation_setting.ChannelFirstTokenTimeouts2JSONString()
 	common.OptionMap[operation_setting.ChannelRelayTimeoutEnabledOptionKey] = strconv.FormatBool(operation_setting.IsChannelRelayTimeoutEnabled())
 	common.OptionMap[operation_setting.ChannelFirstTokenTimeoutEnabledOptionKey] = strconv.FormatBool(operation_setting.IsChannelFirstTokenTimeoutEnabled())
+	common.OptionMap[operation_setting.ChannelResponseHeaderTimeoutsOptionKey] = operation_setting.ChannelResponseHeaderTimeouts2JSONString()
+	common.OptionMap[operation_setting.ChannelResponseHeaderTimeoutEnabledOptionKey] = strconv.FormatBool(operation_setting.IsChannelResponseHeaderTimeoutEnabled())
 	common.OptionMap["DataExportInterval"] = strconv.Itoa(common.DataExportInterval)
 	common.OptionMap["DataExportDefaultTime"] = common.DataExportDefaultTime
 	common.OptionMap["DefaultCollapseSidebar"] = strconv.FormatBool(common.DefaultCollapseSidebar)
@@ -688,6 +690,14 @@ func updateOptionMap(key string, value string) (err error) {
 			err = parseErr
 		} else {
 			operation_setting.SetChannelFirstTokenTimeoutEnabled(boolValue)
+		}
+	case operation_setting.ChannelResponseHeaderTimeoutsOptionKey:
+		err = operation_setting.UpdateChannelResponseHeaderTimeoutsByJSONString(value)
+	case operation_setting.ChannelResponseHeaderTimeoutEnabledOptionKey:
+		if boolValue, parseErr := strconv.ParseBool(value); parseErr != nil {
+			err = parseErr
+		} else {
+			operation_setting.SetChannelResponseHeaderTimeoutEnabled(boolValue)
 		}
 	case "DataExportInterval":
 		common.DataExportInterval, _ = strconv.Atoi(value)

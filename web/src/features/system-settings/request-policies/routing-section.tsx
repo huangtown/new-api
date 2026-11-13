@@ -105,7 +105,11 @@ function RoutingPolicyEditor(props: { config: PolicyConfig }) {
         if (key === 'AutomaticRetryStatusCodes') {
           return value !== parseHttpStatusCodeRules(previous).normalized
         }
-        if (key === 'ChannelRelayTimeouts' || key === 'ChannelFirstTokenTimeouts') {
+        if (
+          key === 'ChannelRelayTimeouts' ||
+          key === 'ChannelFirstTokenTimeouts' ||
+          key === 'ChannelResponseHeaderTimeouts'
+        ) {
           // An unset option comes back as '', which serializes to '{}'.
           // Compare the normalized form so an untouched form stays clean.
           return (
@@ -115,11 +119,12 @@ function RoutingPolicyEditor(props: { config: PolicyConfig }) {
         }
         if (
           key === 'ChannelRelayTimeoutEnabled' ||
-          key === 'ChannelFirstTokenTimeoutEnabled'
+          key === 'ChannelFirstTokenTimeoutEnabled' ||
+          key === 'ChannelResponseHeaderTimeoutEnabled'
         ) {
-          // Neither key exists in configs saved before the switches shipped.
-          // Treat a missing value as the default (enabled) so opening the page
-          // does not look like an unsaved change.
+          // None of these keys exist in configs saved before the switches
+          // shipped. Treat a missing value as the default (enabled) so opening
+          // the page does not look like an unsaved change.
           return value !== (previous ?? 'true')
         }
         return value !== previous

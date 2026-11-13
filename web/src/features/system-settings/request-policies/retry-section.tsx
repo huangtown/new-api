@@ -176,6 +176,52 @@ export function RetrySection() {
             </FormItem>
           )}
         />
+        <FormField
+          control={form.control}
+          name='ChannelResponseHeaderTimeoutEnabled'
+          render={({ field }) => (
+            <SettingsSwitchItem>
+              <SettingsSwitchContent>
+                <FormLabel>
+                  {t('Enable per-channel response timeout')}
+                </FormLabel>
+                <FormDescription>
+                  {t(
+                    'Applies the response timeout below to the wait for upstream response headers. When off, the global RELAY_RESPONSE_HEADER_TIMEOUT applies instead.'
+                  )}
+                </FormDescription>
+              </SettingsSwitchContent>
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+            </SettingsSwitchItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name='ChannelResponseHeaderTimeouts'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('Per-channel response timeout')}</FormLabel>
+              <FormControl>
+                <ChannelRelayTimeoutsEditor
+                  value={field.value}
+                  onChange={field.onChange}
+                  disabled={!form.watch('ChannelResponseHeaderTimeoutEnabled')}
+                />
+              </FormControl>
+              <FormDescription>
+                {t(
+                  'How long to wait for upstream response headers before giving up. This covers slow upstreams that accept the connection and return nothing — the phase neither the total timeout nor the first token timeout bounds.'
+                )}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
       </div>
     </SettingsCard>
   )

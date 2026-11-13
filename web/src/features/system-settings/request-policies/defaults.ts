@@ -25,6 +25,8 @@ export type RetrySettings = {
   ChannelRelayTimeoutEnabled: boolean
   ChannelFirstTokenTimeouts: string
   ChannelFirstTokenTimeoutEnabled: boolean
+  ChannelResponseHeaderTimeouts: string
+  ChannelResponseHeaderTimeoutEnabled: boolean
   AutomaticRetryStatusCodes: string
 }
 export type HealthSettings = {
@@ -56,6 +58,8 @@ export const defaultRequestPolicySettings: RequestPolicySettings = {
   ChannelRelayTimeoutEnabled: true,
   ChannelFirstTokenTimeouts: '{}',
   ChannelFirstTokenTimeoutEnabled: true,
+  ChannelResponseHeaderTimeouts: '{}',
+  ChannelResponseHeaderTimeoutEnabled: true,
   AutomaticRetryStatusCodes:
     '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
   ChannelDisableThreshold: '',

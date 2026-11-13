@@ -7322,6 +7322,10 @@
     "Enable per-channel relay timeout": "启用按渠道的中继超时",
     "Applies the per-channel relay timeout below to non-streaming requests. When off, those requests use the global RELAY_TIMEOUT instead.": "对非流式请求应用下方的按渠道中继超时。关闭后这些请求改用全局 RELAY_TIMEOUT。",
     "Enable per-channel first token timeout": "启用按渠道的首字超时",
-    "Applies the first token timeout below to streaming requests. When off, streaming requests get no first token deadline.": "对流式请求应用下方的首字超时。关闭后流式请求不再有首字截止时间。"
+    "Applies the first token timeout below to streaming requests. When off, streaming requests get no first token deadline.": "对流式请求应用下方的首字超时。关闭后流式请求不再有首字截止时间。",
+    "Enable per-channel response timeout": "启用按渠道的响应超时",
+    "Applies the response timeout below to the wait for upstream response headers. When off, the global RELAY_RESPONSE_HEADER_TIMEOUT applies instead.": "对等待上游响应头应用下方的响应超时。关闭后改用全局 RELAY_RESPONSE_HEADER_TIMEOUT。",
+    "Per-channel response timeout": "按渠道的响应超时",
+    "How long to wait for upstream response headers before giving up. This covers slow upstreams that accept the connection and return nothing — the phase neither the total timeout nor the first token timeout bounds.": "等待上游返回响应头的最长时间。用于兜住那些建立连接后迟迟不响应的上游——总时长超时与首字超时都覆盖不到这个阶段。"
   }
 }
