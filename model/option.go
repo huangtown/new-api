@@ -676,9 +676,26 @@ func updateOptionMap(key string, value string) (err error) {
 	case "RetryTimes":
 		common.RetryTimes, _ = strconv.Atoi(value)
 	case operation_setting.ChannelRelayTimeoutsOptionKey:
-		err = operation_setting.UpdateChannelRelayTimeoutsByJSONString(value)
+		if parseErr := func() error {
+			_, e := operation_setting.ParseChannelRelayTimeouts(value)
+			return e
+		}(); parseErr != nil {
+			err = parseErr
+		} else {
+			// updateOptionMap already wrote OptionMap under its lock; only the
+			// parse cache needs refreshing. Calling the Update* variant here
+			// would re-lock OptionMapRWMutex and deadlock.
+			operation_setting.RefreshChannelRelayTimeoutCache(value)
+		}
 	case operation_setting.ChannelFirstTokenTimeoutsOptionKey:
-		err = operation_setting.UpdateChannelFirstTokenTimeoutsByJSONString(value)
+		if parseErr := func() error {
+			_, e := operation_setting.ParseChannelFirstTokenTimeouts(value)
+			return e
+		}(); parseErr != nil {
+			err = parseErr
+		} else {
+			operation_setting.RefreshChannelFirstTokenTimeoutCache(value)
+		}
 	case operation_setting.ChannelRelayTimeoutEnabledOptionKey:
 		if boolValue, parseErr := strconv.ParseBool(value); parseErr != nil {
 			err = parseErr
@@ -692,7 +709,14 @@ func updateOptionMap(key string, value string) (err error) {
 			operation_setting.SetChannelFirstTokenTimeoutEnabled(boolValue)
 		}
 	case operation_setting.ChannelResponseHeaderTimeoutsOptionKey:
-		err = operation_setting.UpdateChannelResponseHeaderTimeoutsByJSONString(value)
+		if parseErr := func() error {
+			_, e := operation_setting.ParseChannelResponseHeaderTimeouts(value)
+			return e
+		}(); parseErr != nil {
+			err = parseErr
+		} else {
+			operation_setting.RefreshChannelResponseHeaderTimeoutCache(value)
+		}
 	case operation_setting.ChannelResponseHeaderTimeoutEnabledOptionKey:
 		if boolValue, parseErr := strconv.ParseBool(value); parseErr != nil {
 			err = parseErr

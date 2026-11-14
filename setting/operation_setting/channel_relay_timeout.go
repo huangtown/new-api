@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync/atomic"
+	"sync"
 
 	"github.com/QuantumNous/new-api/common"
 )
@@ -32,46 +32,152 @@ const (
 	MaxChannelRelayTimeoutSeconds                = 86400
 )
 
-var channelRelayTimeouts atomic.Value
-var channelFirstTokenTimeouts atomic.Value
-var channelResponseHeaderTimeouts atomic.Value
-var channelRelayTimeoutEnabled atomic.Bool
-var channelFirstTokenTimeoutEnabled atomic.Bool
-var channelResponseHeaderTimeoutEnabled atomic.Bool
+// timeoutMapCache memoises the parse of one channel→seconds option.
+//
+// common.OptionMap is the single source of truth: it is written under its lock
+// on save, so reading it on every lookup makes a configuration change visible
+// to the very next request instead of waiting for the periodic sync loop.
+// Parsing is the expensive part, so it is skipped unless the raw string changed.
+type timeoutMapCache struct {
+	key string
 
-func init() {
-	channelRelayTimeouts.Store(map[int]int{})
-	channelFirstTokenTimeouts.Store(map[int]int{})
-	channelResponseHeaderTimeouts.Store(map[int]int{})
-	channelRelayTimeoutEnabled.Store(true)
-	channelFirstTokenTimeoutEnabled.Store(true)
-	channelResponseHeaderTimeoutEnabled.Store(true)
+	mu   sync.RWMutex
+	raw  string
+	seen bool
+	m    map[int]int
 }
 
-// The setters only touch the atomic flag; model.updateOptionMap owns the
-// OptionMap write under its lock, so writing the map here would race.
+// load returns the current map for this option. The returned map is never
+// mutated by callers, so sharing it between requests is safe.
+func (c *timeoutMapCache) load() map[int]int {
+	common.OptionMapRWMutex.RLock()
+	raw := common.OptionMap[c.key]
+	common.OptionMapRWMutex.RUnlock()
+
+	c.mu.RLock()
+	if c.seen && c.raw == raw {
+		m := c.m
+		c.mu.RUnlock()
+		return m
+	}
+	c.mu.RUnlock()
+
+	parsed, err := parseChannelTimeoutMap(raw, c.key)
+	if err != nil {
+		// A malformed value never reaches the store (validation rejects it),
+		// but degrade to "no per-channel budget" rather than failing a relay.
+		parsed = map[int]int{}
+	}
+
+	c.mu.Lock()
+	c.raw = raw
+	c.seen = true
+	c.m = parsed
+	c.mu.Unlock()
+	return parsed
+}
+
+// updateFromRaw refreshes the cache only. It must NOT touch OptionMap: callers
+// inside model.updateOptionMap already hold OptionMapRWMutex, and re-locking a
+// non-reentrant RWMutex here would deadlock the save path.
+func (c *timeoutMapCache) updateFromRaw(raw string) {
+	parsed, err := parseChannelTimeoutMap(raw, c.key)
+	if err != nil {
+		parsed = map[int]int{}
+	}
+	c.mu.Lock()
+	c.raw = raw
+	c.seen = true
+	c.m = parsed
+	c.mu.Unlock()
+}
+
+func (c *timeoutMapCache) store(raw string) {
+	common.OptionMapRWMutex.Lock()
+	// OptionMap is normally allocated by InitOptionMap. Guard the write anyway:
+	// tests and early-init paths can reach here before that runs, and a nil-map
+	// assignment would panic the process.
+	if common.OptionMap == nil {
+		common.OptionMap = make(map[string]string)
+	}
+	common.OptionMap[c.key] = raw
+	common.OptionMapRWMutex.Unlock()
+	c.updateFromRaw(raw)
+}
+
+// rawJSON returns the last cached raw value without touching OptionMap.
+//
+// Several callers run while model.InitOptionMap holds OptionMapRWMutex
+// (e.g. building the default map). Taking that lock again there would deadlock,
+// since Go's RWMutex is not reentrant, so cache introspection must stay on the
+// cache's own lock.
+func (c *timeoutMapCache) rawJSON() string {
+	c.mu.RLock()
+	raw := c.raw
+	c.mu.RUnlock()
+	if strings.TrimSpace(raw) == "" {
+		return "{}"
+	}
+	return raw
+}
+
+var channelRelayTimeoutCache = &timeoutMapCache{key: ChannelRelayTimeoutsOptionKey}
+var channelFirstTokenTimeoutCache = &timeoutMapCache{key: ChannelFirstTokenTimeoutsOptionKey}
+var channelResponseHeaderTimeoutCache = &timeoutMapCache{key: ChannelResponseHeaderTimeoutsOptionKey}
+
+// flagCache mirrors one boolean option for the same reason: the accessors are
+// called from InitOptionMap while the OptionMap lock is held, so they cannot
+// read OptionMap themselves. Every write path (save, sync loop) goes through
+// model.updateOptionMap, which calls the matching setter.
+type flagCache struct {
+	mu   sync.RWMutex
+	seen bool
+	v    bool
+}
+
+func (c *flagCache) get() bool {
+	c.mu.RLock()
+	seen, v := c.seen, c.v
+	c.mu.RUnlock()
+	if !seen {
+		return true // switches default to enabled
+	}
+	return v
+}
+
+func (c *flagCache) set(v bool) {
+	c.mu.Lock()
+	c.seen = true
+	c.v = v
+	c.mu.Unlock()
+}
+
+var channelRelayTimeoutEnabled = &flagCache{}
+var channelFirstTokenTimeoutEnabled = &flagCache{}
+var channelResponseHeaderTimeoutEnabled = &flagCache{}
+
 func SetChannelRelayTimeoutEnabled(enabled bool) {
-	channelRelayTimeoutEnabled.Store(enabled)
+	channelRelayTimeoutEnabled.set(enabled)
 }
 
 func IsChannelRelayTimeoutEnabled() bool {
-	return channelRelayTimeoutEnabled.Load()
+	return channelRelayTimeoutEnabled.get()
 }
 
 func SetChannelFirstTokenTimeoutEnabled(enabled bool) {
-	channelFirstTokenTimeoutEnabled.Store(enabled)
+	channelFirstTokenTimeoutEnabled.set(enabled)
 }
 
 func IsChannelFirstTokenTimeoutEnabled() bool {
-	return channelFirstTokenTimeoutEnabled.Load()
+	return channelFirstTokenTimeoutEnabled.get()
 }
 
 func SetChannelResponseHeaderTimeoutEnabled(enabled bool) {
-	channelResponseHeaderTimeoutEnabled.Store(enabled)
+	channelResponseHeaderTimeoutEnabled.set(enabled)
 }
 
 func IsChannelResponseHeaderTimeoutEnabled() bool {
-	return channelResponseHeaderTimeoutEnabled.Load()
+	return channelResponseHeaderTimeoutEnabled.get()
 }
 
 // parseChannelTimeoutMap is shared by the total and first-token maps: both are
@@ -120,48 +226,47 @@ func ParseChannelResponseHeaderTimeouts(value string) (map[int]int, error) {
 }
 
 func UpdateChannelRelayTimeoutsByJSONString(value string) error {
-	timeouts, err := ParseChannelRelayTimeouts(value)
-	if err != nil {
+	if _, err := ParseChannelRelayTimeouts(value); err != nil {
 		return err
 	}
-	channelRelayTimeouts.Store(timeouts)
+	channelRelayTimeoutCache.store(value)
 	return nil
 }
 
+// RefreshChannelRelayTimeoutCache reparses the per-channel map for callers that
+// already wrote OptionMap themselves (model.updateOptionMap holds the lock).
+func RefreshChannelRelayTimeoutCache(raw string) {
+	channelRelayTimeoutCache.updateFromRaw(raw)
+}
+
 func ChannelRelayTimeouts2JSONString() string {
-	timeouts := channelRelayTimeouts.Load().(map[int]int)
-	jsonBytes, err := common.Marshal(timeouts)
-	if err != nil {
-		return "{}"
-	}
-	return string(jsonBytes)
+	return channelRelayTimeoutCache.rawJSON()
 }
 
 func GetChannelRelayTimeout(channelID int) (int, bool) {
-	if channelID <= 0 || !channelRelayTimeoutEnabled.Load() {
+	if channelID <= 0 || !IsChannelRelayTimeoutEnabled() {
 		return 0, false
 	}
-	timeouts := channelRelayTimeouts.Load().(map[int]int)
-	timeoutSeconds, ok := timeouts[channelID]
+	timeoutSeconds, ok := channelRelayTimeoutCache.load()[channelID]
 	return timeoutSeconds, ok
 }
 
 func UpdateChannelFirstTokenTimeoutsByJSONString(value string) error {
-	timeouts, err := ParseChannelFirstTokenTimeouts(value)
-	if err != nil {
+	if _, err := ParseChannelFirstTokenTimeouts(value); err != nil {
 		return err
 	}
-	channelFirstTokenTimeouts.Store(timeouts)
+	channelFirstTokenTimeoutCache.store(value)
 	return nil
 }
 
+// RefreshChannelFirstTokenTimeoutCache reparses the per-channel map for callers
+// that already wrote OptionMap themselves.
+func RefreshChannelFirstTokenTimeoutCache(raw string) {
+	channelFirstTokenTimeoutCache.updateFromRaw(raw)
+}
+
 func ChannelFirstTokenTimeouts2JSONString() string {
-	timeouts := channelFirstTokenTimeouts.Load().(map[int]int)
-	jsonBytes, err := common.Marshal(timeouts)
-	if err != nil {
-		return "{}"
-	}
-	return string(jsonBytes)
+	return channelFirstTokenTimeoutCache.rawJSON()
 }
 
 // GetChannelFirstTokenTimeout returns the per-channel first-token budget.
@@ -169,8 +274,7 @@ func GetChannelFirstTokenTimeout(channelID int) (int, bool) {
 	if channelID <= 0 {
 		return 0, false
 	}
-	timeouts := channelFirstTokenTimeouts.Load().(map[int]int)
-	timeoutSeconds, ok := timeouts[channelID]
+	timeoutSeconds, ok := channelFirstTokenTimeoutCache.load()[channelID]
 	return timeoutSeconds, ok
 }
 
@@ -186,31 +290,30 @@ func ResolveFirstTokenTimeout(channelID int) int {
 }
 
 func UpdateChannelResponseHeaderTimeoutsByJSONString(value string) error {
-	timeouts, err := ParseChannelResponseHeaderTimeouts(value)
-	if err != nil {
+	if _, err := ParseChannelResponseHeaderTimeouts(value); err != nil {
 		return err
 	}
-	channelResponseHeaderTimeouts.Store(timeouts)
+	channelResponseHeaderTimeoutCache.store(value)
 	return nil
 }
 
+// RefreshChannelResponseHeaderTimeoutCache reparses the per-channel map for
+// callers that already wrote OptionMap themselves.
+func RefreshChannelResponseHeaderTimeoutCache(raw string) {
+	channelResponseHeaderTimeoutCache.updateFromRaw(raw)
+}
+
 func ChannelResponseHeaderTimeouts2JSONString() string {
-	timeouts := channelResponseHeaderTimeouts.Load().(map[int]int)
-	jsonBytes, err := common.Marshal(timeouts)
-	if err != nil {
-		return "{}"
-	}
-	return string(jsonBytes)
+	return channelResponseHeaderTimeoutCache.rawJSON()
 }
 
 // GetChannelResponseHeaderTimeout returns the per-channel response-header
 // budget. The feature switch gates it the same way the other two gates work.
 func GetChannelResponseHeaderTimeout(channelID int) (int, bool) {
-	if channelID <= 0 || !channelResponseHeaderTimeoutEnabled.Load() {
+	if channelID <= 0 || !IsChannelResponseHeaderTimeoutEnabled() {
 		return 0, false
 	}
-	timeouts := channelResponseHeaderTimeouts.Load().(map[int]int)
-	timeoutSeconds, ok := timeouts[channelID]
+	timeoutSeconds, ok := channelResponseHeaderTimeoutCache.load()[channelID]
 	return timeoutSeconds, ok
 }
 
